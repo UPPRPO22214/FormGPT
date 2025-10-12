@@ -1,15 +1,21 @@
 from contextlib import asynccontextmanager
+from database import create_tables, close_connections
 
+import uvicorn
 from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 
 from api import all_routers
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    pass
+    await create_tables()
+    yield
+    await close_connections()
 
 
-app = FastAPI()
+app = FastAPI(lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=['*'],
@@ -20,3 +26,6 @@ app.add_middleware(
 
 for router in all_routers:
     app.include_router(router)
+
+if __name__ == "__main__":
+    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, workers=4)
