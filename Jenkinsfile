@@ -11,7 +11,7 @@ pipeline {
                 echo 'Building Docker image...'
                 script {
                     sh """
-                    docker build -t ${DOCKER_IMAGE}:${DOCKER_TAG} .
+                    docker build -t ${DOCKER_IMAGE}:${DOCKER_TAG} -f .survey-service
                     docker tag ${DOCKER_IMAGE}:${DOCKER_TAG} ${DOCKER_IMAGE}:${DOCKER_LATEST_TAG}
                     """
                 }
