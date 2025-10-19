@@ -18,6 +18,31 @@ pipeline {
                 }
             }
         }
+        stage('Deploy to Feature Branch') {
+            when {
+                not {
+                    branch 'main'
+                }
+                not {
+                    branch 'develop'
+                }
+            }
+            steps {
+                echo 'Deploying to feature branch environment...'
+                script {
+                    sh """
+                    # Остановить feature контейнер
+                    docker stop survey-service-feature || true
+                    docker rm survey-service-feature || true
+                    # Запустить на feature порту
+                    docker run -d --name survey-service-feature -p 5002:8081 \\
+                        ${DOCKER_IMAGE}:${DOCKER_LATEST_TAG}
+                    echo "Feature deployment complete!"
+                    echo "  Access feature app at: http://localhost:5002"
+                    """
+                }
+            }
+        }
         stage('Deploy to Dev') {
             when {
                 branch 'develop'
