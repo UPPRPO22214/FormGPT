@@ -1,4 +1,9 @@
-FROM ubuntu:latest
-LABEL authors="Igor"
+FROM python:3.10-slim
 
-ENTRYPOINT ["top", "-b"]
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY /app .
+EXPOSE 8082
+ENV GIGACHAT_CREDENTIALS=${GIGACHAT_CREDENTIALS}
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8082", "--reload"]
