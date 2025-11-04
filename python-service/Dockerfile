@@ -5,5 +5,4 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY /app .
 EXPOSE 8082
-ENV GIGACHAT_CREDENTIALS=${GIGACHAT_CREDENTIALS}
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8082", "--reload"]

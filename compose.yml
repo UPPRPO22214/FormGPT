@@ -1,0 +1,25 @@
+version: '3.8'
+services:
+  python-service:
+    build: ./python-service
+    ports:
+      - "8082:8082"
+    environment:
+      - GIGACHAT_CREDENTIALS=${GIGACHAT_CREDENTIALS}
+    depends_on:
+      - survey-service
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  survey-service:
+    build: ./survey-service
+    ports:
+      - "8081:8081"
+    networks:
+      - app-network
+    restart: unless-stopped
+    #add postgres and volumes, nginx mb
+networks:
+  app-network:
+    driver: bridge
