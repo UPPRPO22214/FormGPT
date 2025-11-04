@@ -1,18 +1,14 @@
 from contextlib import asynccontextmanager
-from database import create_tables, close_connections
 
 import uvicorn
 from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
-
-from api import all_routers
+from api.routers import all_routers
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await create_tables()
     yield
-    await close_connections()
 
 
 app = FastAPI(lifespan=lifespan)

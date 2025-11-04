@@ -1,12 +1,22 @@
+from typing import Optional
+
 from pydantic import BaseModel
-from questions import QuestionSchema
+
+from schemas.questions import QuestionSchema
 
 
 class FormSchema(BaseModel):
-    id: int
     title: str
-    author_id: int
     questions: list[QuestionSchema]
+
+    class Config:
+        from_attributes = True
+
+
+class FormGenerationSchema(BaseModel):
+    topic: str
+    questions_count: Optional[int]
+    target_audience: Optional[str]
 
     class Config:
         from_attributes = True

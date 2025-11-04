@@ -1,9 +1,14 @@
-from db.db import Base
-from sqlalchemy.orm import mapped_column, Mapped
+from fastapi import APIRouter
 
+from schemas.forms import FormGenerationSchema
+from services.llm_service import LLMService
 
-class Form(Base):
-    __tablename__ = "forms"
-    id: Mapped[int] = mapped_column(primary_key=True)
-    title: Mapped[str]
-    description: Mapped[str]
+router = APIRouter(
+    prefix="/forms",
+    tags=["Forms"],
+)
+
+@router.post("/create")
+async def create(generation_model: FormGenerationSchema):
+    service = LLMService()
+    return service.create_form(generation_model)

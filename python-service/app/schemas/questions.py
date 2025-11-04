@@ -1,19 +1,22 @@
 from enum import Enum
+from typing import Optional
 
 from pydantic import BaseModel
 
 
 class AnswerType(Enum):
-    multiple_choice = "multiple_choice"
-    single_choice = "single_choice"
+    MULTIPLE_CHOICE = "multiple_choice"
+    SIGNLE_CHOICE = "single_choice"
 
 
 class QuestionSchema(BaseModel):
-    id: int
-    form_id: int
+    text: str
     answer_type: AnswerType
-    title: str
     answer_options: list[str]
 
     class Config:
         from_attributes = True
+
+class QuestionGenerationSchema(BaseModel):
+    topic: str
+    target_audience: Optional[str]
