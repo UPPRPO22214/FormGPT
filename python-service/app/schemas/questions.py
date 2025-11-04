@@ -6,7 +6,9 @@ from pydantic import BaseModel
 
 class AnswerType(Enum):
     MULTIPLE_CHOICE = "multiple_choice"
-    SIGNLE_CHOICE = "single_choice"
+    SINGLE_CHOICE = "single_choice"
+    NUMERIC = "numeric"
+    TEXT = "text"
 
 
 class QuestionSchema(BaseModel):

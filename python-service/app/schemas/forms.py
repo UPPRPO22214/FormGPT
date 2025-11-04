@@ -15,8 +15,8 @@ class FormSchema(BaseModel):
 
 class FormGenerationSchema(BaseModel):
     topic: str
-    questions_count: Optional[int]
-    target_audience: Optional[str]
+    questions_count: Optional[int] = None
+    target_audience: Optional[str] = None
 
     class Config:
         from_attributes = True

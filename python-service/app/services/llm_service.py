@@ -1,6 +1,6 @@
 import json
 
-import config
+import logging
 from config import settings
 from gigachat import GigaChat
 from gigachat.models import Chat
@@ -9,6 +9,8 @@ from schemas.forms import FormSchema, FormGenerationSchema
 from schemas.questions import QuestionSchema, AnswerType
 from schemas.utils import MessageSchema
 from services.llm_service_interface import LLMServiceInterface
+
+logger = logging.getLogger(__name__)
 
 
 class LLMService(LLMServiceInterface):
@@ -30,12 +32,12 @@ class LLMService(LLMServiceInterface):
         form = FormSchema(title="Ntvf njgbrf", questions=[
             QuestionSchema(text="Вопрос", answer_type=AnswerType.MULTIPLE_CHOICE,
                            answer_options=["Ответ 1", "Ответ 2"]),
-            QuestionSchema(text="Вопрос", answer_type=AnswerType.SIGNLE_CHOICE, answer_options=["Ответ 1"])])
+            QuestionSchema(text="Вопрос", answer_type=AnswerType.SINGLE_CHOICE, answer_options=["Ответ 1"])])
 
         messages.append(
             MessageSchema(role="user",
                           content="Ответ пришли в формате JSON:"
-                                  f"ПРИМЕР ОТВЕТА: {form.model_dump()}"
+                                  f"ПРИМЕР ОТВЕТА: {form.model_dump_json()}"
                                   "Верни ТОЛЬКО JSON без каких-либо пояснений."
                           ))
         return FormSchema(**self.generate_answer_by_messages(messages))
@@ -54,5 +56,6 @@ class LLMService(LLMServiceInterface):
 
         content = content.replace("'", '"')
         content = content.strip()
+        logger.info(content)
         print(content)
         return json.loads(content)
