@@ -4,7 +4,8 @@ from pydantic import BaseModel
 
 from schemas.questions import QuestionSchema
 
-#TODO: add examples and fields for swagger docs
+
+# TODO: add examples and fields for swagger docs
 
 class FormSchema(BaseModel):
     title: str

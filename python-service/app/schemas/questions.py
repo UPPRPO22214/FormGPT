@@ -19,6 +19,14 @@ class QuestionSchema(BaseModel):
     class Config:
         from_attributes = True
 
+
 class QuestionGenerationSchema(BaseModel):
     topic: str
     target_audience: Optional[str]
+
+
+class QuestionImprovementSchema(BaseModel):
+    text: str
+    answer_type: Optional[AnswerType]
+    answer_options: Optional[list[str]]
+    prompt: Optional[str]

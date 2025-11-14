@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
-from schemas.questions import QuestionGenerationSchema
+from dependencies import LLMServiceDep
+from schemas.questions import QuestionGenerationSchema, QuestionSchema
 from services.llm_service import LLMService
 
 router = APIRouter(
@@ -8,6 +9,7 @@ router = APIRouter(
     tags=["Questions"],
 )
 
-@router.post("/")
-async def generate_question(form: QuestionGenerationSchema):
-    return LLMService().generate_question(form)
+@router.post("/generate")
+async def generate_question(form: QuestionGenerationSchema, service: LLMServiceDep) -> QuestionSchema:
+    return service.generate_question(form)
+
