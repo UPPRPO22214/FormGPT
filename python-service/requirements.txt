@@ -1,0 +1,13 @@
+fastapi
+pydantic-settings
+uvicorn
+dotenv
+asyncpg
+
+#llm
+langchain
+langsmith
+langgraph
+langchain-core
+gigachat
+langchain-gigachat

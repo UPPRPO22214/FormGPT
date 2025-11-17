@@ -1,0 +1,27 @@
+version: '3.8'
+services:
+  python-service:
+    build: ./python-service
+    ports:
+      - "8082:8082"
+    environment:
+      - GIGACHAT_CREDENTIALS=${GIGACHAT_CREDENTIALS}
+    depends_on:
+      survey-service:
+        condition: service_healthy
+    restart: unless-stopped
+    #TODO: add healthcheck with curl on /healht
+
+  survey-service:
+    build: ./survey-service
+    ports:
+      - "8081:8081"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8081/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    #add postgres and volumes, nginx mb
+    #in the docker compose we can use name of services for hosts instead of container name (i.e. survey-service instead of localhost:8081)
+    #also we don't need to specify network since it is the default
