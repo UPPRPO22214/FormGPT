@@ -5,7 +5,7 @@ info:
   description: API для конструктора опросов с GPT помощником
 
 servers:
-  - url: http://localhost:8080
+  - url: http://survey-service:8080
 
 components:
   securitySchemes:
@@ -25,14 +25,6 @@ components:
         createdAt:
           type: string
           format: date-time
-        surveys:
-          type: array
-          items:
-            $ref: "#/components/schemas/Survey"
-        completedSurveys:
-          type: array
-          items:
-            $ref: "#/components/schemas/Survey"
 
     Survey:
       type: object
@@ -280,31 +272,6 @@ paths:
         '204':
           description: Успешно удалён
 
-  /surveys/{surveyId}/questions:
-    post:
-      summary: Добавить вопрос к опросу
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: path
-          name: surveyId
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/Question"
-      responses:
-        '200':
-          description: Созданный вопрос
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Question"
-
   /surveys/{surveyId}/answers:
     post:
       summary: Отправка всех ответов на опрос одним объектом
@@ -376,7 +343,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/Survey"
+              type: object
+              properties:
+                survey:
+                  $ref: "#/components/schemas/Survey"
+                prompt:
+                  type: string
+                  description: Необязательный пользовательский промт для улучшения
+                  nullable: true
       responses:
         '200':
           description: Улучшенный опрос
@@ -401,7 +375,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/Question"
+              type: object
+              properties:
+                question:
+                  $ref: "#/components/schemas/Question"
+                prompt:
+                  type: string
+                  description: Необязательный пользовательский промт для улучшения
+                  nullable: true
       responses:
         '200':
           description: Улучшенный вопрос
