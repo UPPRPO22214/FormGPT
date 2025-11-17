@@ -1,0 +1,441 @@
+openapi: 3.0.3
+info:
+  title: FormGPT API
+  version: "0.1.0"
+  description: API для конструктора опросов с GPT помощником
+
+servers:
+  - url: http://survey-service:8080
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        email:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    Survey:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        description:
+          type: string
+        ownerId:
+          type: integer
+        questions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Question"
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    Question:
+      type: object
+      properties:
+        id:
+          type: integer
+        surveyId:
+          type: integer
+        title:
+          type: string
+        type:
+          type: string
+          enum: [single-choice, multiple-choice, text, scale-1-10]
+        options:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    Answer:
+      type: object
+      properties:
+        questionId:
+          type: integer
+        value:
+          type: string
+
+    SurveyAnswer:
+      type: object
+      properties:
+        surveyId:
+          type: integer
+        userId:
+          type: integer
+        answers:
+          type: array
+          items:
+            $ref: "#/components/schemas/Answer"
+
+    GPTAnalysis:
+      type: object
+      properties:
+        text:
+          type: string
+        score:
+          type: string
+          enum: [good, average, bad]
+
+security:
+  - bearerAuth: []
+
+paths:
+  /health:
+    get:
+      summary: Проверка работы сервиса
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+  /auth/register:
+    post:
+      summary: Регистрация пользователя
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Успешная регистрация
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+
+  /auth/login:
+    post:
+      summary: Логин
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Успешная авторизация
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+
+  /users/me:
+    get:
+      summary: Профиль пользователя
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Данные пользователя
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /surveys:
+    get:
+      summary: Список всех своих опросов
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Список опросов
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Survey"
+
+    post:
+      summary: Создать новый опрос
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Survey"
+      responses:
+        '200':
+          description: Созданный опрос
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Survey"
+
+  /surveys/{surveyId}:
+    get:
+      summary: Получить конкретный опрос
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: surveyId
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Опрос
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Survey"
+
+    put:
+      summary: Обновить опрос
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: surveyId
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Survey"
+      responses:
+        '200':
+          description: Обновлённый опрос
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Survey"
+
+    delete:
+      summary: Удалить опрос
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: surveyId
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: Успешно удалён
+
+  /surveys/{surveyId}/answers:
+    post:
+      summary: Отправка всех ответов на опрос одним объектом
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: surveyId
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SurveyAnswer"
+      responses:
+        '200':
+          description: Ответы сохранены
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+
+  /gpt/surveys/create:
+    post:
+      summary: Создание черновика опроса через GPT
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                description:
+                  type: string
+                targetAudience:
+                  type: string
+                questionCount:
+                  type: integer
+      responses:
+        '200':
+          description: Сгенерированный опрос
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Survey"
+
+  /gpt/surveys/{surveyId}/edit:
+    put:
+      summary: Улучшение опроса через GPT
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: surveyId
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                survey:
+                  $ref: "#/components/schemas/Survey"
+                prompt:
+                  type: string
+                  description: Необязательный пользовательский промт для улучшения
+                  nullable: true
+      responses:
+        '200':
+          description: Улучшенный опрос
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Survey"
+
+  /gpt/questions/{questionId}/edit:
+    put:
+      summary: Улучшение вопроса через GPT
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: questionId
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                question:
+                  $ref: "#/components/schemas/Question"
+                prompt:
+                  type: string
+                  description: Необязательный пользовательский промт для улучшения
+                  nullable: true
+      responses:
+        '200':
+          description: Улучшенный вопрос
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Question"
+
+  /gpt/surveys/{surveyId}/analyze:
+    post:
+      summary: Анализ качества опроса через GPT
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: surveyId
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Survey"
+      responses:
+        '200':
+          description: Рекомендации и оценка опроса
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GPTAnalysis"
+
+  /surveys/{surveyId}/stats:
+    get:
+      summary: Получение статистики по опросу
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: surveyId
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Статистика опроса
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  respondents:
+                    type: integer
+                  answersDistribution:
+                    type: object
