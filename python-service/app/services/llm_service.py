@@ -52,7 +52,7 @@ class LLMService(LLMServiceInterface):
             messages.append(MessageSchema(role="user", content=f"Целевая аудитория вопроса: {topic.target_audience}"))
 
         question_example = QuestionSchema(text="Вопрос", answer_type=AnswerType.MULTIPLE_CHOICE,
-                           answer_options=["Ответ 1", "Ответ 2"])
+                                          answer_options=["Ответ 1", "Ответ 2"])
 
         messages.append(
             MessageSchema(role="user",
@@ -63,10 +63,36 @@ class LLMService(LLMServiceInterface):
                           ))
         return QuestionSchema(**self.generate_answer_by_messages(messages))
 
-
-
     def improve_question(self, question_improvement_schema: QuestionImprovementSchema) -> QuestionSchema:
-        pass
+        messages = [
+            MessageSchema(role="system", content=self._system_prompt),
+            MessageSchema(role="user", content=f"Вот мой вопрос:{question_improvement_schema.text}")
+        ]
+        if question_improvement_schema.answer_options:
+            messages.append(MessageSchema(role="user",
+                                          content=f"Вот варианты ответов:{question_improvement_schema.answer_options}"))
+        if question_improvement_schema.answer_type:
+            messages.append(
+                MessageSchema(role="user", content=f"Вот тип ответа:{question_improvement_schema.answer_type}"))
+
+        if question_improvement_schema.prompt:
+            messages.append(
+                MessageSchema(role="user", content=f"{question_improvement_schema.prompt}"))
+        else:
+            messages.append(MessageSchema(role="user",
+                                          content="Улучши мой вопрос, возможно надо поменять тип вопроса или варианты ответов."))
+
+        question_example = QuestionSchema(text="Вопрос", answer_type=AnswerType.MULTIPLE_CHOICE,
+                                          answer_options=["Ответ 1", "Ответ 2"])
+
+        messages.append(
+            MessageSchema(role="user",
+                          content="Ответ пришли в формате JSON:"
+                                  f"ПРИМЕР ОТВЕТА: {question_example.model_dump_json()}"
+                                  "Верни ТОЛЬКО JSON без каких-либо пояснений."
+                                  f"Типы вопросов {[answer_type.value for answer_type in AnswerType]}"
+                          ))
+        return QuestionSchema(**self.generate_answer_by_messages(messages))
 
     def generate_answer_by_messages(self, messages: list[MessageSchema]):
         chat = Chat(
