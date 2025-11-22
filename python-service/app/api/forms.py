@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 
+from dependencies import LLMServiceDep
 from schemas.forms import FormGenerationSchema, FormSchema
 from services.llm_service import LLMService
 
@@ -10,7 +11,6 @@ router = APIRouter(
 
 
 # TODO: add comments for swagger
-@router.post("/create", response_model=FormSchema)
-async def create(generation_model: FormGenerationSchema):
-    service = LLMService()
+@router.post("/create")
+async def create(generation_model: FormGenerationSchema, service: LLMServiceDep) -> FormSchema:
     return service.create_form(generation_model)
