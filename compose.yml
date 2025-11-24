@@ -16,12 +16,31 @@ services:
     build: ./survey-service
     ports:
       - "8081:8081"
+    depends_on:
+      postgres:
+        condition: service_started
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "--fail", "http://localhost:8081/health"]
       interval: 10s
       timeout: 5s
       retries: 3
+
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: survey
+      POSTGRES_USER: survey_user
+      POSTGRES_PASSWORD: survey_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: always
+
+volumes:
+  postgres_data:
+
     #add postgres and volumes, nginx mb
     #in the docker compose we can use name of services for hosts instead of container name (i.e. survey-service instead of localhost:8081)
     #also we don't need to specify network since it is the default
