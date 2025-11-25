@@ -3,9 +3,9 @@ spring:
     name: survey-service
 
   datasource:
-    url: jdbc:postgresql://postgres:5432/survey
-    username: survey_user
-    password: survey_password
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/survey}
+    username: ${SPRING_DATASOURCE_USERNAME:survey_user}
+    password: ${SPRING_DATASOURCE_PASSWORD:survey_password}
     driver-class-name: org.postgresql.Driver
 
   jpa:
@@ -22,4 +22,4 @@ spring:
     baseline-on-migrate: true
 
 server:
-  port: 8081
+  port: ${SPRING_PORT:8081}

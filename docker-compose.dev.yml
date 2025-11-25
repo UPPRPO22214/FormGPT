@@ -1,3 +1,5 @@
+# only for development, never use it in prod
+
 services:
   postgres:
     image: postgres:16

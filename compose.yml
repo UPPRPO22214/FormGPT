@@ -1,21 +1,25 @@
 version: '3.8'
+
 services:
   python-service:
     build: ./python-service
     ports:
       - "8082:8082"
     environment:
-      - GIGACHAT_CREDENTIALS=${GIGACHAT_CREDENTIALS}
+      GIGACHAT_CREDENTIALS: ${GIGACHAT_CREDENTIALS}
     depends_on:
       survey-service:
         condition: service_healthy
     restart: unless-stopped
-    #TODO: add healthcheck with curl on /healht
 
   survey-service:
     build: ./survey-service
     ports:
       - "8081:8081"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
     depends_on:
       postgres:
         condition: service_started
@@ -29,18 +33,12 @@ services:
   postgres:
     image: postgres:16
     environment:
-      POSTGRES_DB: survey
-      POSTGRES_USER: survey_user
-      POSTGRES_PASSWORD: survey_password
-    ports:
-      - "5432:5432"
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     restart: always
 
 volumes:
   postgres_data:
-
-    #add postgres and volumes, nginx mb
-    #in the docker compose we can use name of services for hosts instead of container name (i.e. survey-service instead of localhost:8081)
-    #also we don't need to specify network since it is the default
