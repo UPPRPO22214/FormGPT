@@ -1,21 +1,30 @@
 version: '3.8'
 
 services:
+  frontend-service:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - VITE_API_URL=http://survey-service:8081
+    depends_on:
+      survey-service:
+        condition: service_healthy
+    restart: unless-stopped
+    #TODO: change to static nginx and healthcheck
+
   python-service:
     build: ./python-service
-    ports:
-      - "8082:8082"
     environment:
       GIGACHAT_CREDENTIALS: ${GIGACHAT_CREDENTIALS}
     depends_on:
       survey-service:
         condition: service_healthy
     restart: unless-stopped
+    #TODO: add healthcheck and ngnix
 
   survey-service:
     build: ./survey-service
-    ports:
-      - "8081:8081"
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
@@ -25,7 +34,7 @@ services:
         condition: service_started
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "--fail", "http://localhost:8081/health"]
+      test: [ "CMD", "curl", "--fail", "http://localhost:8081/health" ]
       interval: 10s
       timeout: 5s
       retries: 3
