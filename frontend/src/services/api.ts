@@ -8,6 +8,11 @@ import {
   ChangePasswordRequest,
   User,
 } from '../types/user';
+import {
+  Survey,
+  CreateSurveyRequest,
+  UpdateSurveyRequest,
+} from '../types/survey';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -68,6 +73,32 @@ export const userApi = {
 
   changePassword: async (data: ChangePasswordRequest): Promise<void> => {
     await api.put('/users/me/password', data);
+  },
+};
+
+export const surveyApi = {
+  getAll: async (): Promise<Survey[]> => {
+    const response = await api.get<Survey[]>('/surveys');
+    return response.data;
+  },
+
+  getById: async (id: string): Promise<Survey> => {
+    const response = await api.get<Survey>(`/surveys/${id}`);
+    return response.data;
+  },
+
+  create: async (data: CreateSurveyRequest): Promise<Survey> => {
+    const response = await api.post<Survey>('/surveys', data);
+    return response.data;
+  },
+
+  update: async (id: string, data: UpdateSurveyRequest): Promise<Survey> => {
+    const response = await api.put<Survey>(`/surveys/${id}`, data);
+    return response.data;
+  },
+
+  delete: async (id: string): Promise<void> => {
+    await api.delete(`/surveys/${id}`);
   },
 };
 
