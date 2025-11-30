@@ -12,6 +12,8 @@ app.use(express.json());
 let users = [];
 let tokens = new Map(); // token -> userId
 let nextUserId = 1;
+let surveys = [];
+let nextSurveyId = 1;
 
 // Генерация токена (простая имитация)
 function generateToken() {
@@ -134,6 +136,119 @@ app.put('/users/me/password', (req, res) => {
   res.status(200).json({ success: true });
 });
 
+// ========== ЭНДПОИНТЫ ДЛЯ ОПРОСОВ ==========
+
+// Получение всех опросов пользователя
+app.get('/surveys', (req, res) => {
+  const user = getUserByToken(req.headers.authorization);
+  
+  if (!user) {
+    return res.status(401).json({ message: 'Токен не предоставлен или невалиден' });
+  }
+
+  const userSurveys = surveys.filter(s => s.userId === user.id);
+  res.json(userSurveys);
+});
+
+// Получение опроса по ID
+app.get('/surveys/:id', (req, res) => {
+  const user = getUserByToken(req.headers.authorization);
+  
+  if (!user) {
+    return res.status(401).json({ message: 'Токен не предоставлен или невалиден' });
+  }
+
+  const survey = surveys.find(s => s.id === parseInt(req.params.id));
+  
+  if (!survey) {
+    return res.status(404).json({ message: 'Опрос не найден' });
+  }
+
+  if (survey.userId !== user.id) {
+    return res.status(403).json({ message: 'Нет доступа к этому опросу' });
+  }
+
+  res.json(survey);
+});
+
+// Создание нового опроса
+app.post('/surveys', (req, res) => {
+  const user = getUserByToken(req.headers.authorization);
+  
+  if (!user) {
+    return res.status(401).json({ message: 'Токен не предоставлен или невалиден' });
+  }
+
+  const { title, description, questions } = req.body;
+
+  if (!title || !questions || !Array.isArray(questions)) {
+    return res.status(400).json({ message: 'Название и вопросы обязательны' });
+  }
+
+  const newSurvey = {
+    id: nextSurveyId++,
+    userId: user.id,
+    title,
+    description: description || '',
+    questions,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  surveys.push(newSurvey);
+  res.status(201).json(newSurvey);
+});
+
+// Обновление опроса
+app.put('/surveys/:id', (req, res) => {
+  const user = getUserByToken(req.headers.authorization);
+  
+  if (!user) {
+    return res.status(401).json({ message: 'Токен не предоставлен или невалиден' });
+  }
+
+  const surveyIndex = surveys.findIndex(s => s.id === parseInt(req.params.id));
+  
+  if (surveyIndex === -1) {
+    return res.status(404).json({ message: 'Опрос не найден' });
+  }
+
+  if (surveys[surveyIndex].userId !== user.id) {
+    return res.status(403).json({ message: 'Нет доступа к этому опросу' });
+  }
+
+  const { title, description, questions } = req.body;
+
+  if (title) surveys[surveyIndex].title = title;
+  if (description !== undefined) surveys[surveyIndex].description = description;
+  if (questions) surveys[surveyIndex].questions = questions;
+  surveys[surveyIndex].updatedAt = new Date().toISOString();
+
+  res.json(surveys[surveyIndex]);
+});
+
+// Удаление опроса
+app.delete('/surveys/:id', (req, res) => {
+  const user = getUserByToken(req.headers.authorization);
+  
+  if (!user) {
+    return res.status(401).json({ message: 'Токен не предоставлен или невалиден' });
+  }
+
+  const surveyIndex = surveys.findIndex(s => s.id === parseInt(req.params.id));
+  
+  if (surveyIndex === -1) {
+    return res.status(404).json({ message: 'Опрос не найден' });
+  }
+
+  if (surveys[surveyIndex].userId !== user.id) {
+    return res.status(403).json({ message: 'Нет доступа к этому опросу' });
+  }
+
+  surveys.splice(surveyIndex, 1);
+  res.status(204).send();
+});
+
 app.listen(PORT, () => {
   console.log(`🚀 Mock API Server запущен на http://localhost:${PORT}`);
   console.log(`📝 Доступные эндпоинты:`);
@@ -142,5 +257,10 @@ app.listen(PORT, () => {
   console.log(`   GET  /users/me`);
   console.log(`   PUT  /users/me`);
   console.log(`   PUT  /users/me/password`);
+  console.log(`   GET  /surveys`);
+  console.log(`   GET  /surveys/:id`);
+  console.log(`   POST /surveys`);
+  console.log(`   PUT  /surveys/:id`);
+  console.log(`   DELETE /surveys/:id`);
 });
 
