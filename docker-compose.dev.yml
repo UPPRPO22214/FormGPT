@@ -13,6 +13,7 @@ services:
       - "5433:5432"
     volumes:
       - postgres_data_dev:/var/lib/postgresql/data
+  #TODO: add python service frontend
 
 volumes:
   postgres_data_dev:
