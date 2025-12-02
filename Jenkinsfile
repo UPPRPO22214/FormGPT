@@ -11,7 +11,7 @@ pipeline {
     }
 
 
-    stages {
+
      stages {
         stage('Prepare') {
             steps {
