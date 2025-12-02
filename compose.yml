@@ -1,17 +1,6 @@
 version: '3.8'
 
 services:
-  frontend-service:
-    build: ./frontend
-    ports:
-      - "3000:3000"
-    environment:
-      - VITE_API_URL=http://survey-service:8081
-    depends_on:
-      survey-service:
-        condition: service_healthy
-    restart: unless-stopped
-    #TODO: change to static nginx and healthcheck
 
   python-service:
     build: ./python-service
@@ -21,7 +10,7 @@ services:
       survey-service:
         condition: service_healthy
     restart: unless-stopped
-    #TODO: add healthcheck and ngnix
+    #TODO: add healthcheck
 
   survey-service:
     build: ./survey-service
@@ -48,6 +37,15 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     restart: always
+
+  nginx:
+    build: ./frontend
+    environment:
+      - VITE_API_URL=/api
+    ports:
+      - "80:80"
+      - "443:443"
+
 
 volumes:
   postgres_data:

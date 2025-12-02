@@ -1,10 +1,12 @@
-FROM node:alpine
+FROM node:alpine as build-stage
 WORKDIR /app
 COPY package*.json .
 RUN npm install
-ARG VITE_API_URL
-ENV VITE_API_URL=$VITE_API_URL
 COPY . /app
-EXPOSE 3000
-CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
-#TODO: change to "npm run build" when adding nginx
+RUN npm run build
+
+FROM nginx
+COPY --from=build-stage /app/dist /usr/share/nginx/html
+COPY nginx.conf /etc/nginx/nginx.conf
+EXPOSE 8080
+CMD ["nginx", "-g", "daemon off;"]
