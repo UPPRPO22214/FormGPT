@@ -1,11 +1,14 @@
 pipeline {
     agent any
+
     environment {
+        // Add environment variables if needed
     }
+
     stages {
         stage('Build') {
             steps {
-                echo 'Building Docker compose...'
+                echo "Building on branch: ${env.BRANCH_NAME}"
                 script {
                     sh """
                     docker-compose build
@@ -13,56 +16,49 @@ pipeline {
                 }
             }
         }
-        stage('Deploy to Production') {
+
+        stage('Deploy') {
             when {
-                not branch 'main'
+                // Only deploy if NOT main branch
+                not { branch 'main' }
             }
             steps {
-                echo 'Deploying application to production...'
+                echo 'Deploying application...'
                 script {
                     sh """
-                    docker-compose stop
-                    docker-compose rm -f
+                    docker-compose down || true
                     docker-compose up -d
                     """
                     echo "Application deployed successfully!"
-                    echo "  Access the app at: http://localhost"
+                    echo "Access the app at: http://localhost"
                 }
             }
         }
-
     }
+
     post {
-        success {
-            echo "Pipeline completed successfully!"
-        }
-        failure {
-            echo "Pipeline failed!"
-        }
         always {
-            echo "Cleaning up Docker images..."
+            echo "Starting cleanup..."
             script {
+                // Fixed cleanup script using Jenkins env variable
                 sh '''
-                # Удаляем неиспользованные образы
+                echo "Cleaning up for branch: ${BRANCH_NAME}"
+
+                # Remove dangling images
                 docker image prune -f || true
 
-                if [ "' + env.BRANCH_NAME + '" = "main" ] || [ "' + env.BRANCH_NAME + '" = "develop" ]; then
-                    echo "Keeping last 5 images for production branch: ' + env.BRANCH_NAME + '"
-                    # Оставляем только последние 5 образов для main/develop
-                    docker images survey-service --format "table {{.Repository}}:{{.Tag}}" | \
-                    grep "' + env.BRANCH_NAME + '-" | \
-                    sort -k2 -r | \
-                    tail -n +6 | \
-                    awk '"'"'{print $1}'"'"' | \
-                    xargs -r docker rmi || true
+                # Branch-specific cleanup logic
+                if [ "${BRANCH_NAME}" = "main" ] || [ "${BRANCH_NAME}" = "develop" ]; then
+                    echo "Keeping images for production branch: ${BRANCH_NAME}"
                 else
-                    echo "Removing all images for feature branch: ' + env.BRANCH_NAME + '"
-                    # Удаляем ВСЕ образы feature веток после сборки
-                    docker images survey-service --format "table {{.Repository}}:{{.Tag}}" | \
-                    grep "' + env.BRANCH_NAME + '-" | \
-                    xargs -r docker rmi || true
+                    echo "Removing feature branch images for: ${BRANCH_NAME}"
+                    # Find and remove images tagged with this branch
+                    docker images --format "{{.Repository}}:{{.Tag}}" | \
+                    grep "${BRANCH_NAME}" | \
+                    xargs -r docker rmi -f || true
                 fi
-                echo "Cleanup completed for branch: ' + env.BRANCH_NAME + '"
+
+                echo "Cleanup completed"
                 '''
             }
         }
