@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        COMPOSE_PROJECT_NAME = "formgpt-${env.BRANCH_NAME}"
+        COMPOSE_PROJECT_NAME = "formgpt-${env.BRANCH_NAME.toLowerCase()}}"
 
         POSTGRES_DB = "${env.POSTGRES_DB ?: 'survey'}"
         POSTGRES_USER = credentials('9dba7a41-0e00-416c-a2e4-b981a3d8711b')
