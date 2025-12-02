@@ -1,14 +1,14 @@
 pipeline {
-   agent any
+    agent any
 
-     environment {
+    environment {
         COMPOSE_PROJECT_NAME = "formgpt-${env.BRANCH_NAME}"
 
         POSTGRES_DB = "${env.POSTGRES_DB ?: 'survey'}"
         POSTGRES_USER = credentials('9dba7a41-0e00-416c-a2e4-b981a3d8711b')
         POSTGRES_PASSWORD = credentials('ec53b390-40e3-42f8-931f-d67352ddb1be')
         GIGACHAT_CREDENTIALS = credentials('985545c7-9661-4fdf-a341-500ed9cc8b6c')
-        }
+    }
 
     stages {
         stage('Build') {
@@ -37,25 +37,23 @@ pipeline {
 
     post {
         always {
-            node {
-                echo "Starting cleanup..."
-                sh '''
-                    echo "Cleaning up for branch: ${BRANCH_NAME}"
+            echo "Starting cleanup..."
+            sh '''
+                echo "Cleaning up for branch: ${BRANCH_NAME}"
 
-                    docker image prune -f || true
+                docker image prune -f || true
 
-                    if [ "${BRANCH_NAME}" = "main" ] || [ "${BRANCH_NAME}" = "develop" ]; then
-                        echo "Keeping images for production branch: ${BRANCH_NAME}"
-                    else
-                        echo "Removing feature branch images for: ${BRANCH_NAME}"
-                        docker images --format "{{.Repository}}:{{.Tag}}" |
-                        grep "${BRANCH_NAME}" |
-                        xargs -r docker rmi -f || true
-                    fi
+                if [ "${BRANCH_NAME}" = "main" ] || [ "${BRANCH_NAME}" = "develop" ]; then
+                    echo "Keeping images for production branch: ${BRANCH_NAME}"
+                else
+                    echo "Removing feature branch images for: ${BRANCH_NAME}"
+                    docker images --format "{{.Repository}}:{{.Tag}}" |
+                    grep "${BRANCH_NAME}" |
+                    xargs -r docker rmi -f || true
+                fi
 
-                    echo "Cleanup completed"
-                '''
-            }
+                echo "Cleanup completed"
+            '''
         }
     }
 }
