@@ -1,12 +1,32 @@
 pipeline {
    agent any
 
-    environment {
+     environment {
         COMPOSE_PROJECT_NAME = "formgpt-${env.BRANCH_NAME}"
+
+        POSTGRES_DB = "${env.POSTGRES_DB ?: 'survey'}"
+        POSTGRES_USER = credentials('postgres user')
+        POSTGRES_PASSWORD = credentials('postgres-password')
+        GIGACHAT_CREDENTIALS = credentials('gigachat-token')
     }
 
 
     stages {
+     stages {
+        stage('Prepare') {
+            steps {
+                script {
+                    sh '''
+                    export POSTGRES_DB=${POSTGRES_DB}
+                    export POSTGRES_USER=${POSTGRES_USER}
+                    export POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+                    export GIGACHAT_CREDENTIALS=${GIGACHAT_CREDENTIALS}
+                    '''
+                }
+            }
+        }
+
+
         stage('Build') {
             steps {
                 echo "Building on branch: ${env.BRANCH_NAME}"
