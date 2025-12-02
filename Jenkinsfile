@@ -15,7 +15,7 @@ pipeline {
         }
         stage('Deploy to Production') {
             when {
-                branch 'main'
+                not branch 'main'
             }
             steps {
                 echo 'Deploying application to production...'
