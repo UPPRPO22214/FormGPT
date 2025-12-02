@@ -1,5 +1,14 @@
 pipeline {
-    agent any
+    agent {
+        docker {
+            image 'docker/compose:latest'
+            args '-v /var/run/docker.sock:/var/run/docker.sock'
+        }
+    }
+
+    environment {
+        COMPOSE_PROJECT_NAME = "formgpt-${env.BRANCH_NAME}"
+    }
 
 
     stages {
@@ -8,6 +17,7 @@ pipeline {
                 echo "Building on branch: ${env.BRANCH_NAME}"
                 script {
                     sh """
+                    docker-compose version
                     docker-compose build
                     """
                 }
