@@ -12,6 +12,7 @@ import {
   Survey,
   CreateSurveyRequest,
   UpdateSurveyRequest,
+  GPTAnalysis,
 } from '../types/survey';
 
 const api = axios.create({
@@ -99,6 +100,11 @@ export const surveyApi = {
 
   delete: async (id: string): Promise<void> => {
     await api.delete(`/surveys/${id}`);
+  },
+
+  analyze: async (id: string, survey: Survey): Promise<GPTAnalysis> => {
+    const response = await api.post<GPTAnalysis>(`/gpt/surveys/${id}/analyze`, survey);
+    return response.data;
   },
 };
 

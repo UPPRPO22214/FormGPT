@@ -2,15 +2,21 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { surveyApi } from '../services/api';
-import { Survey } from '../types/survey';
+import { Survey, GPTAnalysis } from '../types/survey';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
+import { ContextMenu, ContextMenuItem } from '../components/ui/ContextMenu';
+import { Modal } from '../components/ui/Modal';
 
 export const HomePage = () => {
   const navigate = useNavigate();
   const { user } = useAuthStore();
   const [surveys, setSurveys] = useState<Survey[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; surveyId: string } | null>(null);
+  const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; surveyId: string | null }>({ isOpen: false, surveyId: null });
+  const [analysisModal, setAnalysisModal] = useState<{ isOpen: boolean; analysis: GPTAnalysis | null }>({ isOpen: false, analysis: null });
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   useEffect(() => {
     loadSurveys();
@@ -35,6 +41,73 @@ export const HomePage = () => {
       month: 'long',
       day: 'numeric',
     });
+  };
+
+  const handleContextMenu = (e: React.MouseEvent, surveyId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setContextMenu({ x: e.clientX, y: e.clientY, surveyId });
+  };
+
+  const handleDelete = async () => {
+    if (!deleteModal.surveyId) return;
+    try {
+      await surveyApi.delete(deleteModal.surveyId);
+      setSurveys(surveys.filter(s => s.id !== deleteModal.surveyId));
+      setDeleteModal({ isOpen: false, surveyId: null });
+    } catch (error) {
+      console.error('Ошибка удаления опроса:', error);
+      alert('Не удалось удалить опрос');
+    }
+  };
+
+  const handleEdit = (surveyId: string) => {
+    setContextMenu(null);
+    navigate(`/surveys/${surveyId}/edit`);
+  };
+
+  const handleAnalyze = async (surveyId: string) => {
+    setContextMenu(null);
+    setIsAnalyzing(true);
+    try {
+      const survey = surveys.find(s => s.id === surveyId);
+      if (!survey || !survey.id) {
+        throw new Error('Опрос не найден');
+      }
+      const analysis = await surveyApi.analyze(survey.id, survey);
+      setAnalysisModal({ isOpen: true, analysis });
+    } catch (error) {
+      console.error('Ошибка анализа опроса:', error);
+      alert('Не удалось проанализировать опрос');
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  const getScoreLabel = (score: string) => {
+    switch (score) {
+      case 'good':
+        return 'Хорошо';
+      case 'average':
+        return 'Средне';
+      case 'bad':
+        return 'Плохо';
+      default:
+        return score;
+    }
+  };
+
+  const getScoreColor = (score: string) => {
+    switch (score) {
+      case 'good':
+        return 'text-green-600 bg-green-50';
+      case 'average':
+        return 'text-yellow-600 bg-yellow-50';
+      case 'bad':
+        return 'text-red-600 bg-red-50';
+      default:
+        return 'text-gray-600 bg-gray-50';
+    }
   };
 
   return (
@@ -136,46 +209,140 @@ export const HomePage = () => {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {surveys.map((survey) => (
-                <Link
+                <div
                   key={survey.id}
-                  to={`/surveys/${survey.id}`}
-                  className="block p-6 bg-white/60 backdrop-blur-xl rounded-xl border border-white/30 hover:border-primary-300 hover:shadow-lg transition-all duration-300 group"
+                  onContextMenu={(e) => survey.id && handleContextMenu(e, survey.id)}
+                  className="relative"
                 >
-                  <div className="flex items-start justify-between mb-3">
-                    <h3 className="text-lg font-bold text-gray-900 group-hover:text-primary-600 transition-colors line-clamp-2">
-                      {survey.title}
-                    </h3>
-                    <div className="w-10 h-10 bg-primary-100 rounded-lg flex items-center justify-center flex-shrink-0 ml-3 group-hover:bg-primary-200 transition-colors">
-                      <svg className="w-5 h-5 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                      </svg>
+                  <Link
+                    to={`/surveys/${survey.id}`}
+                    className="block p-6 bg-white/60 backdrop-blur-xl rounded-xl border border-white/30 hover:border-primary-300 hover:shadow-lg transition-all duration-300 group"
+                  >
+                    <div className="flex items-start justify-between mb-3">
+                      <h3 className="text-lg font-bold text-gray-900 group-hover:text-primary-600 transition-colors line-clamp-2">
+                        {survey.title}
+                      </h3>
+                      <div className="w-10 h-10 bg-primary-100 rounded-lg flex items-center justify-center flex-shrink-0 ml-3 group-hover:bg-primary-200 transition-colors">
+                        <svg className="w-5 h-5 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                      </div>
                     </div>
-                  </div>
-                  {survey.description && (
-                    <p className="text-gray-600 text-sm mb-4 line-clamp-2">
-                      {survey.description}
-                    </p>
-                  )}
-                  <div className="flex items-center justify-between text-xs text-gray-500">
-                    <span className="flex items-center gap-1">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                      </svg>
-                      {formatDate(survey.createdAt)}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-                      </svg>
-                      {survey.questions?.length || 0} вопросов
-                    </span>
-                  </div>
-                </Link>
+                    {survey.description && (
+                      <p className="text-gray-600 text-sm mb-4 line-clamp-2">
+                        {survey.description}
+                      </p>
+                    )}
+                    <div className="flex items-center justify-between text-xs text-gray-500">
+                      <span className="flex items-center gap-1">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        {formatDate(survey.createdAt)}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                        </svg>
+                        {survey.questions?.length || 0} вопросов
+                      </span>
+                    </div>
+                  </Link>
+                </div>
               ))}
             </div>
           )}
         </Card>
       </div>
+
+      {/* Контекстное меню */}
+      {contextMenu && (
+        <ContextMenu
+          isOpen={true}
+          onClose={() => setContextMenu(null)}
+          x={contextMenu.x}
+          y={contextMenu.y}
+        >
+          <ContextMenuItem
+            onClick={() => handleEdit(contextMenu.surveyId)}
+            icon={
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+            }
+          >
+            Редактировать
+          </ContextMenuItem>
+          <ContextMenuItem
+            onClick={() => handleAnalyze(contextMenu.surveyId)}
+            icon={
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+            }
+          >
+            Проанализировать
+          </ContextMenuItem>
+          <div className="border-t border-gray-200 my-1"></div>
+          <ContextMenuItem
+            onClick={() => {
+              setContextMenu(null);
+              setDeleteModal({ isOpen: true, surveyId: contextMenu.surveyId });
+            }}
+            variant="danger"
+            icon={
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            }
+          >
+            Удалить
+          </ContextMenuItem>
+        </ContextMenu>
+      )}
+
+      {/* Модальное окно подтверждения удаления */}
+      <Modal
+        isOpen={deleteModal.isOpen}
+        onClose={() => setDeleteModal({ isOpen: false, surveyId: null })}
+        title="Удаление опроса"
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteModal({ isOpen: false, surveyId: null })}
+        confirmText="Удалить"
+        cancelText="Отмена"
+        variant="danger"
+      >
+        <p>Вы уверены, что хотите удалить этот опрос? Это действие нельзя отменить.</p>
+      </Modal>
+
+      {/* Модальное окно результатов анализа */}
+      <Modal
+        isOpen={analysisModal.isOpen}
+        onClose={() => setAnalysisModal({ isOpen: false, analysis: null })}
+        title="Анализ опроса"
+        onCancel={() => setAnalysisModal({ isOpen: false, analysis: null })}
+        cancelText="Закрыть"
+      >
+        {isAnalyzing ? (
+          <div className="text-center py-8">
+            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+            <p className="mt-4 text-gray-600">Анализ опроса...</p>
+          </div>
+        ) : analysisModal.analysis ? (
+          <div className="space-y-4">
+            <div className={`px-4 py-3 rounded-xl ${getScoreColor(analysisModal.analysis.score)}`}>
+              <div className="flex items-center justify-between">
+                <span className="font-semibold">Оценка качества:</span>
+                <span className="font-bold">{getScoreLabel(analysisModal.analysis.score)}</span>
+              </div>
+            </div>
+            <div className="bg-gray-50 rounded-xl p-4">
+              <h4 className="font-semibold text-gray-900 mb-2">Рекомендации:</h4>
+              <p className="text-gray-700 whitespace-pre-wrap">{analysisModal.analysis.text}</p>
+            </div>
+          </div>
+        ) : null}
+      </Modal>
     </div>
   );
 };
