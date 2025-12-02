@@ -2,13 +2,13 @@ pipeline {
     agent any
 
     environment {
-        COMPOSE_PROJECT_NAME = "formgpt-${env.BRANCH_NAME.toLowerCase()}}"
 
         POSTGRES_DB = "${env.POSTGRES_DB ?: 'survey'}"
         POSTGRES_USER = credentials('9dba7a41-0e00-416c-a2e4-b981a3d8711b')
         POSTGRES_PASSWORD = credentials('ec53b390-40e3-42f8-931f-d67352ddb1be')
         GIGACHAT_CREDENTIALS = credentials('985545c7-9661-4fdf-a341-500ed9cc8b6c')
     }
+    //TODO: add stage for all branches with compose up and down without port forwarding
 
     stages {
         stage('Build') {
