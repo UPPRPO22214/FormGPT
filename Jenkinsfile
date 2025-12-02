@@ -1,10 +1,5 @@
 pipeline {
-    agent {
-        docker {
-            image 'docker/compose:latest'
-            args '-v /var/run/docker.sock:/var/run/docker.sock'
-        }
-    }
+   agent any
 
     environment {
         COMPOSE_PROJECT_NAME = "formgpt-${env.BRANCH_NAME}"
