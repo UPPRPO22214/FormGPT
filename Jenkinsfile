@@ -5,67 +5,55 @@ pipeline {
         COMPOSE_PROJECT_NAME = "formgpt-${env.BRANCH_NAME}"
 
         POSTGRES_DB = "${env.POSTGRES_DB ?: 'survey'}"
-        POSTGRES_USER = credentials('postgres user')
-        POSTGRES_PASSWORD = credentials('postgres-password')
-        GIGACHAT_CREDENTIALS = credentials('gigachat-token')
-    }
-
+        POSTGRES_USER = credentials('9dba7a41-0e00-416c-a2e4-b981a3d8711b')
+        POSTGRES_PASSWORD = credentials('ec53b390-40e3-42f8-931f-d67352ddb1be')
+        GIGACHAT_CREDENTIALS = credentials('985545c7-9661-4fdf-a341-500ed9cc8b6c')
+        }
 
     stages {
         stage('Build') {
             steps {
                 echo "Building on branch: ${env.BRANCH_NAME}"
-                script {
-                    sh """
+                sh """
                     docker-compose version
                     docker-compose build
-                    """
-                }
+                """
             }
         }
 
         stage('Deploy') {
             when {
-                // Only deploy if NOT main branch
                 not { branch 'main' }
             }
             steps {
                 echo 'Deploying application...'
-                script {
-                    sh """
+                sh """
                     docker-compose down || true
                     docker-compose up -d
-                    """
-                    echo "Application deployed successfully!"
-                    echo "Access the app at: http://localhost"
-                }
+                """
             }
         }
     }
 
     post {
         always {
-            echo "Starting cleanup..."
-            script {
-                // Fixed cleanup script using Jenkins env variable
+            node {
+                echo "Starting cleanup..."
                 sh '''
-                echo "Cleaning up for branch: ${BRANCH_NAME}"
+                    echo "Cleaning up for branch: ${BRANCH_NAME}"
 
-                # Remove dangling images
-                docker image prune -f || true
+                    docker image prune -f || true
 
-                # Branch-specific cleanup logic
-                if [ "${BRANCH_NAME}" = "main" ] || [ "${BRANCH_NAME}" = "develop" ]; then
-                    echo "Keeping images for production branch: ${BRANCH_NAME}"
-                else
-                    echo "Removing feature branch images for: ${BRANCH_NAME}"
-                    # Find and remove images tagged with this branch
-                    docker images --format "{{.Repository}}:{{.Tag}}" | \
-                    grep "${BRANCH_NAME}" | \
-                    xargs -r docker rmi -f || true
-                fi
+                    if [ "${BRANCH_NAME}" = "main" ] || [ "${BRANCH_NAME}" = "develop" ]; then
+                        echo "Keeping images for production branch: ${BRANCH_NAME}"
+                    else
+                        echo "Removing feature branch images for: ${BRANCH_NAME}"
+                        docker images --format "{{.Repository}}:{{.Tag}}" |
+                        grep "${BRANCH_NAME}" |
+                        xargs -r docker rmi -f || true
+                    fi
 
-                echo "Cleanup completed"
+                    echo "Cleanup completed"
                 '''
             }
         }
