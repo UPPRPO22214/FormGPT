@@ -11,22 +11,7 @@ pipeline {
     }
 
 
-
-     stages {
-        stage('Prepare') {
-            steps {
-                script {
-                    sh '''
-                    export POSTGRES_DB=${POSTGRES_DB}
-                    export POSTGRES_USER=${POSTGRES_USER}
-                    export POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-                    export GIGACHAT_CREDENTIALS=${GIGACHAT_CREDENTIALS}
-                    '''
-                }
-            }
-        }
-
-
+    stages {
         stage('Build') {
             steps {
                 echo "Building on branch: ${env.BRANCH_NAME}"
