@@ -37,3 +37,8 @@ export interface UpdateSurveyRequest {
   questions?: Question[];
 }
 
+export interface GPTAnalysis {
+  text: string;
+  score: 'good' | 'average' | 'bad';
+}
+
