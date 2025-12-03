@@ -13,6 +13,7 @@ import {
   CreateSurveyRequest,
   UpdateSurveyRequest,
   GPTAnalysis,
+  SurveyAnswerRequest,
 } from '../types/survey';
 
 const api = axios.create({
@@ -104,6 +105,11 @@ export const surveyApi = {
 
   analyze: async (id: string, survey: Survey): Promise<GPTAnalysis> => {
     const response = await api.post<GPTAnalysis>(`/gpt/surveys/${id}/analyze`, survey);
+    return response.data;
+  },
+
+  submitAnswers: async (surveyId: string, data: SurveyAnswerRequest): Promise<{ success: boolean }> => {
+    const response = await api.post<{ success: boolean }>(`/surveys/${surveyId}/answers`, data);
     return response.data;
   },
 };
