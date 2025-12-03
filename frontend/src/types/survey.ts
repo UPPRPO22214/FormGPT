@@ -42,3 +42,14 @@ export interface GPTAnalysis {
   score: 'good' | 'average' | 'bad';
 }
 
+export interface Answer {
+  questionId: string;
+  value: string;
+}
+
+export interface SurveyAnswerRequest {
+  surveyId: string | number;
+  userId: number;
+  answers: Answer[];
+}
+
