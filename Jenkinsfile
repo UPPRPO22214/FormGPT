@@ -15,7 +15,7 @@ pipeline {
                 echo "Building on branch: ${env.BRANCH_NAME}"
                 sh """
                     docker-compose version
-                    docker-compose build
+                    docker-compose build --pull --no-cache
                 """
             }
         }
