@@ -102,31 +102,32 @@ pipeline {
                 }
             }
         }
-    }
 
-    post {
-        always {
-            echo "Starting cleanup..."
-            sh '''
-                echo "Cleaning up for branch: ${BRANCH_NAME}"
 
-                docker image prune -f || true
+        post {
+            always {
+                echo "Starting cleanup..."
+                sh '''
+                    echo "Cleaning up for branch: ${BRANCH_NAME}"
 
-                if [ "${BRANCH_NAME}" = "main" ] || [ "${BRANCH_NAME}" = "develop" ]; then
-                    echo "Keeping images for production branch: ${BRANCH_NAME}"
-                    # Для main ветки не удаляем контейнеры (они продолжают работать)
-                else
-                    echo "Removing feature branch images for: ${BRANCH_NAME}"
-                    docker images --format "{{.Repository}}:{{.Tag}}" |
-                    grep "${BRANCH_NAME}" |
-                    xargs -r docker rmi -f || true
+                    docker image prune -f || true
 
-                    # Для feature веток удаляем все связанные контейнеры
-                    docker-compose down || true
-                fi
+                    if [ "${BRANCH_NAME}" = "main" ] || [ "${BRANCH_NAME}" = "develop" ]; then
+                        echo "Keeping images for production branch: ${BRANCH_NAME}"
+                        # Для main ветки не удаляем контейнеры (они продолжают работать)
+                    else
+                        echo "Removing feature branch images for: ${BRANCH_NAME}"
+                        docker images --format "{{.Repository}}:{{.Tag}}" |
+                        grep "${BRANCH_NAME}" |
+                        xargs -r docker rmi -f || true
 
-                echo "Cleanup completed"
-            '''
+                        # Для feature веток удаляем все связанные контейнеры
+                        docker-compose down || true
+                    fi
+
+                    echo "Cleanup completed"
+                '''
+            }
         }
 
         failure {
