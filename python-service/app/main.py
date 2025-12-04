@@ -20,9 +20,15 @@ app.add_middleware(
     allow_headers=['*']
 )
 
+
+@app.get("/health")
+def get_health():
+    return {"status": "alive"}
+
+
 for router in all_routers:
     app.include_router(router)
 
 if __name__ == "__main__":
-    #TODO: setip reload for docker compose
+    # TODO: setip reload for docker compose
     uvicorn.run("app.main:app", host="0.0.0.0", port=8000, workers=4)
