@@ -95,10 +95,6 @@ pipeline {
             telegramSend message: '✅ Build #${BUILD_NUMBER} успешно завершена!',
                 chatId: '1368783838'
         }
-        failure {
-            telegramSend message: '❌ Build #${BUILD_NUMBER} провалена!', chatId:
-            '1368783838'
-            }
         always {
             echo "Running cleanup..."
 
@@ -130,6 +126,9 @@ pipeline {
                     docker-compose logs || true
                 fi
             '''
+            telegramSend message: '❌ Build #${BUILD_NUMBER} провалена!', chatId:
+            '1368783838'
+            }
         }
     }
 }
