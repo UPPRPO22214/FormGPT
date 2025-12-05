@@ -38,7 +38,7 @@ pipeline {
                             max_retries=30
                             retry_count=0
                             while [ $retry_count -lt $max_retries ]; do
-                                if curl -f http://localhost:80/api/health || curl -f http://localhost/api/health; then
+                                if docker exec survey_main-nginx-1 curl -fsS http://localhost/api/health; then
                                     echo "Application is UP"
                                     break
                                 fi
