@@ -41,6 +41,10 @@ services:
     environment:
       GIGACHAT_CREDENTIALS: ${GIGACHAT_CREDENTIALS}
     restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8082/health"]
       interval: 30s
