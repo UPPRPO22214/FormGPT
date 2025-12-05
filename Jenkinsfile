@@ -1,123 +1,142 @@
 pipeline {
     agent any
+
     environment {
-        DOCKER_IMAGE = 'survey-service'
-        DOCKER_TAG = "${env.BRANCH_NAME}-${BUILD_NUMBER}"
-        DOCKER_LATEST_TAG = "${env.BRANCH_NAME}-latest"
+        POSTGRES_DB = "${env.POSTGRES_DB ?: 'survey'}"
+        POSTGRES_USER = credentials('9dba7a41-0e00-416c-a2e4-b981a3d8711b')
+        POSTGRES_PASSWORD = credentials('ec53b390-40e3-42f8-931f-d67352ddb1be')
+        GIGACHAT_CREDENTIALS = credentials('985545c7-9661-4fdf-a341-500ed9cc8b6c')
+        COMPOSE_PROJECT_NAME = "survey_${normalizeBranchName(env.BRANCH_NAME)}"
     }
+
     stages {
         stage('Build') {
             steps {
-                echo 'Building Docker image...'
-                script {
-                    sh """
-                    cd survey-service
-                    docker build -t ${DOCKER_IMAGE}:${DOCKER_TAG} .
-                    docker tag ${DOCKER_IMAGE}:${DOCKER_TAG} ${DOCKER_IMAGE}:${DOCKER_LATEST_TAG}
-                    """
-                }
+                echo "Building on branch: ${env.BRANCH_NAME}"
+                sh """
+                    docker-compose version
+                    docker-compose build --pull --no-cache
+                """
             }
         }
-        stage('Deploy to Feature Branch') {
-            when {
-                not {
-                    branch 'main'
-                }
-                not {
-                    branch 'develop'
-                }
-            }
+
+        stage('Deploy') {
             steps {
-                echo 'Deploying to feature branch environment...'
                 script {
-                    sh """
-                    # Остановить feature контейнер
-                    docker stop survey-service-feature || true
-                    docker rm survey-service-feature || true
-                    # Запустить на feature порту
-                    docker run -d --name survey-service-feature -p 5002:8081 \\
-                        ${DOCKER_IMAGE}:${DOCKER_LATEST_TAG}
-                    echo "Feature deployment complete!"
-                    echo "  Access feature app at: http://localhost:5002"
-                    """
-                }
-            }
-        }
-        stage('Deploy to Dev') {
-            when {
-                branch 'develop'
-            }
-            steps {
-                echo 'Deploying application to development environment...'
-                script {
-                    sh """
-                    # Остановить dev контейнер
-                    docker stop survey-service-dev || true
-                    docker rm survey-service-dev || true
-                    # Запустить на dev порту
-                    docker run -d --name survey-service-dev -p 5001:8081 \\
-                        ${DOCKER_IMAGE}:${DOCKER_LATEST_TAG}
-                    echo "Dev deployment complete!"
-                    echo "  Access dev app at: http://localhost:5001"
-                    """
-                }
-            }
-        }
-        stage('Deploy to Production') {
-            when {
-                branch 'main'
-            }
-            steps {
-                echo 'Deploying application to production...'
-                script {
-                    sh """
-                    # Остановить все контейнеры на порту 5000
-                    docker stop survey-service-prod || true
-                    docker rm survey-service-prod || true
-                    # Запустить новый контейнер
-                    docker run -d --name survey-service-prod -p 5000:8081 \\
-                        ${DOCKER_IMAGE}:${DOCKER_LATEST_TAG}
-                    """
-                    echo "Application deployed successfully!"
-                    echo "  Access the app at: http://localhost:5000"
+                    if (env.BRANCH_NAME == 'main') {
+                        echo 'Deploying to PRODUCTION (main branch)...'
+
+                        sh 'docker-compose down || true'
+
+                        sh '''
+                            docker-compose up -d
+                            sleep 10
+                            docker-compose ps
+                        '''
+
+                        sh '''
+                            max_retries=30
+                            retry_count=0
+                            while [ $retry_count -lt $max_retries ]; do
+                                if curl -f http://localhost:80/health || curl -f http://localhost/health; then
+                                    echo "Application is UP"
+                                    break
+                                fi
+                                echo "Waiting... ($retry_count/$max_retries)"
+                                retry_count=$((retry_count + 1))
+                                sleep 5
+                            done
+
+                            if [ $retry_count -eq $max_retries ]; then
+                                echo "ERROR: Application failed to start"
+                                docker-compose logs
+                                exit 1
+                            fi
+                        '''
+                    } else {
+                        echo "Deploying non-production branch: ${env.BRANCH_NAME}"
+
+                        sh '''
+                            docker-compose up -d
+                            sleep 15
+                        '''
+
+                        sh '''
+                            echo "Checking containers..."
+                            docker-compose ps
+
+                            all_up=$(docker-compose ps --services | while read service; do
+                                if [ "$(docker-compose ps -q $service)" ] && [ "$(docker-compose ps $service | grep -c "Up")" -eq 1 ]; then
+                                    echo "up"
+                                fi
+                            done | grep -c "up")
+
+                            total_services=$(docker-compose ps --services | wc -l)
+
+                            if [ "$all_up" -eq "$total_services" ]; then
+                                echo "All $total_services services running OK"
+                            else
+                                echo "ERROR: Some services not running"
+                                docker-compose logs
+                                exit 1
+                            fi
+                        '''
+
+                        echo "Stopping after test"
+                        sh 'docker-compose down'
+                    }
                 }
             }
         }
     }
+
     post {
-        success {
-            echo "Pipeline completed successfully!"
-        }
-        failure {
-            echo "Pipeline failed!"
-        }
         always {
-            echo "Cleaning up Docker images..."
-            script {
-                // Используем одинарные кавычки для избежания проблем с $
-                sh '''
-                # Удаляем неиспользованные образы
+            echo "Running cleanup..."
+
+            sh '''
+                echo "Cleaning branch ${BRANCH_NAME}"
+
                 docker image prune -f || true
 
-                if [ "' + env.BRANCH_NAME + '" = "main" ] || [ "' + env.BRANCH_NAME + '" = "develop" ]; then
-                    echo "Keeping last 5 images for production branch: ' + env.BRANCH_NAME + '"
-                    # Оставляем только последние 5 образов для main/develop
-                    docker images survey-service --format "table {{.Repository}}:{{.Tag}}" | \
-                    grep "' + env.BRANCH_NAME + '-" | \
-                    sort -k2 -r | \
-                    tail -n +6 | \
-                    awk '"'"'{print $1}'"'"' | \
-                    xargs -r docker rmi || true
+                if [ "${BRANCH_NAME}" = "main" ] || [ "${BRANCH_NAME}" = "develop" ]; then
+                    echo "Production branch, preserving images"
                 else
-                    echo "Removing all images for feature branch: ' + env.BRANCH_NAME + '"
-                    # Удаляем ВСЕ образы feature веток после сборки
-                    docker images survey-service --format "table {{.Repository}}:{{.Tag}}" | \
-                    grep "' + env.BRANCH_NAME + '-" | \
-                    xargs -r docker rmi || true
+                    echo "Removing images for ${BRANCH_NAME}"
+                    docker images --format "{{.Repository}}:{{.Tag}}" |
+                    grep "${BRANCH_NAME}" |
+                    xargs -r docker rmi -f || true
+
+                    docker-compose down || true
                 fi
-                echo "Cleanup completed for branch: ' + env.BRANCH_NAME + '"
-                '''
-            }
+
+                echo "Cleanup done"
+            '''
+        }
+
+        failure {
+            echo "Pipeline failed!"
+            sh '''
+                if [ "${BRANCH_NAME}" = "main" ]; then
+                    echo "Production deploy failed → logs:"
+                    docker-compose logs || true
+                fi
+            '''
         }
     }
+}
+
+def normalizeBranchName(branchName) {
+    if (!branchName) return "unknown"
+    def normalized = branchName.toLowerCase()
+    normalized = normalized.replaceAll('[^a-z0-9-]', '_')
+    normalized = normalized.replaceAll('^_+|_+$', '')
+    normalized = normalized.replaceAll('_+', '_')
+    if (normalized.length() > 30) {
+        normalized = normalized.substring(0, 30)
+    }
+    if (normalized.isEmpty()) {
+        normalized = "branch_" + UUID.randomUUID().toString().substring(0, 8)
+    }
+    return normalized
 }
