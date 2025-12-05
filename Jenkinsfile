@@ -29,7 +29,7 @@ pipeline {
                         sh 'docker-compose down || true'
 
                         sh '''
-                            docker-compose up -d
+                            docker-compose -f docker-compose.prod.yml up -d
                             sleep 10
                             docker-compose ps
                         '''
@@ -38,7 +38,7 @@ pipeline {
                             max_retries=30
                             retry_count=0
                             while [ $retry_count -lt $max_retries ]; do
-                                if curl -f http://localhost:80/health || curl -f http://localhost/health; then
+                                if curl -f http://localhost:80/api/health || curl -f http://localhost/api/health; then
                                     echo "Application is UP"
                                     break
                                 fi
