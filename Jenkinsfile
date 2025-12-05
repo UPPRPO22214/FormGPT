@@ -92,14 +92,13 @@ pipeline {
 
     post {
         success {
-        telegramSend message: '✅ Build #${BUILD_NUMBER} успешно завершена!',
-            chatId: '1368783838'
+            telegramSend message: '✅ Build #${BUILD_NUMBER} успешно завершена!',
+                chatId: '1368783838'
         }
         failure {
             telegramSend message: '❌ Build #${BUILD_NUMBER} провалена!', chatId:
             '1368783838'
             }
-        }
         always {
             echo "Running cleanup..."
 
