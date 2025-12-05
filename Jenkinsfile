@@ -129,7 +129,6 @@ pipeline {
             telegramSend message: '❌ Build #${BUILD_NUMBER} провалена!', chatId:
             '1368783838'
             }
-        }
     }
 }
 
