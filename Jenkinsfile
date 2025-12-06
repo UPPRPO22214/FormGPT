@@ -23,9 +23,31 @@ pipeline {
         stage('Deploy') {
             steps {
                 script {
-                    if (env.BRANCH_NAME == 'main') {
+                    if (env.BRANCH_NAME != 'main') {
                         echo 'Deploying to PRODUCTION (main branch)...'
+                        withCredentials([certificate(
+                            credentialsId: 'ssl_certificate',
+                            keystoreVariable: 'KEYSTORE',
+                            keystorePasswordVariable: 'KEYSTORE_PASS'
+                        )]) {
+                            sh '''
+                                mkdir -p nginx/ssl
 
+                                # KEYSTORE — это путь к временному p12-файлу, сгенерированному Jenkins.
+                                # KEYSTORE_PASS — пароль, который Jenkins автоматически генерирует.
+
+                                # Извлекаем приватный ключ
+                                openssl pkcs12 -in "$KEYSTORE" -nocerts -nodes -passin pass:"$KEYSTORE_PASS" \
+                                    | sed -ne '/-----BEGIN PRIVATE KEY-----/,/-----END PRIVATE KEY-----/p' \
+                                    > nginx/ssl/privkey.pem
+
+                                # Извлекаем сертификат (полную цепочку)
+                                openssl pkcs12 -in "$KEYSTORE" -clcerts -nokeys -passin pass:"$KEYSTORE_PASS" \
+                                    > nginx/ssl/fullchain.pem
+
+                                chmod 600 nginx/ssl/privkey.pem nginx/ssl/fullchain.pem
+                            '''
+                        }
                         sh 'docker-compose down || true'
 
                         sh '''
@@ -112,8 +134,10 @@ pipeline {
 
                     docker-compose down || true
                 fi
-
+                shred -u nginx/ssl/privkey.pem || rm -f nginx/ssl/privkey.pem
+                rm -f nginx/ssl/fullchain.pem
                 echo "Cleanup done"
+
             '''
         }
 
