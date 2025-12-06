@@ -56,6 +56,8 @@ services:
     build: ./frontend
     environment:
       - VITE_API_URL=/api
+    volumes:
+      - ./nginx/nginx_dev.conf:/etc/nginx/nginx.conf:ro
     depends_on:
       survey-service:
         condition: service_healthy
