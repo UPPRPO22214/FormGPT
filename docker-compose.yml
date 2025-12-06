@@ -57,7 +57,8 @@ services:
     environment:
       - VITE_API_URL=/api
     volumes:
-      - ./nginx/nginx_dev.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/dev_conf:/etc/nginx/conf.d:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
     depends_on:
       survey-service:
         condition: service_healthy
