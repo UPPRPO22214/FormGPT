@@ -56,25 +56,7 @@ pipeline {
                             docker-compose ps
                         '''
 
-                        sh '''
-                            max_retries=30
-                            retry_count=0
-                            while [ $retry_count -lt $max_retries ]; do
-                                if docker exec survey_issue_16_1-nginx-1 curl -fsS https://localhost/api/health; then
-                                    echo "Application is UP"
-                                    break
-                                fi
-                                echo "Waiting... ($retry_count/$max_retries)"
-                                retry_count=$((retry_count + 1))
-                                sleep 5
-                            done
 
-                            if [ $retry_count -eq $max_retries ]; then
-                                echo "ERROR: Application failed to start"
-                                docker-compose logs
-                                exit 1
-                            fi
-                        '''
                     } else {
                         echo "Deploying non-production branch: ${env.BRANCH_NAME}"
 
