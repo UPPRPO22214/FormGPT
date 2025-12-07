@@ -9,6 +9,8 @@ FROM nginx
 COPY --from=build-stage /app/dist /usr/share/nginx/html
 COPY default.conf /etc/nginx/conf.d/default.conf
 COPY nginx.conf /etc/nginx/nginx.conf
+COPY nginx/ssl /etc/nginx/ssl
+RUN chmod 600 /etc/nginx/ssl/* && chown root:root /etc/nginx/ssl/*
 EXPOSE 80
 EXPOSE 443
 CMD ["nginx", "-g", "daemon off;"]
