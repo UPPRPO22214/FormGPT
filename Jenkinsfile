@@ -30,7 +30,7 @@ pipeline {
                         // Сертификат из Jenkins credentials: KEYSTORE — путь к временному p12-файлу в воркспейсе агента
                         withCredentials([
                             certificate(credentialsId: 'ssl_certificate', keystoreVariable: 'KEYSTORE'),
-                            string(credentialsId: 'ssl_p12_password', variable: 'KEYPASS')
+                            string(credentialsId: 'ssl_p12_password', variable: 'KEYSTORE_PASS')
                         ]) {
                             // Создаём папку nginx/ssl в рабочем каталоге (WORKSPACE) — именно этот каталог будет использовать docker-compose
                             sh '''
