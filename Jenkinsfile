@@ -34,7 +34,8 @@ pipeline {
                         openssl pkcs12 -in "$KEYSTORE" -clcerts -nokeys -passin pass:"$KEYSTORE_PASS" \
                           > "$WORKSPACE/nginx/ssl/fullchain.pem"
 
-                        chmod 600 "$WORKSPACE/nginx/ssl/privkey.pem" "$WORKSPACE/nginx/ssl/fullchain.pem"
+                        chmod 644 "$WORKSPACE/nginx/ssl/fullchain.pem"
+                        chmod 644 "$WORKSPACE/nginx/ssl/privkey.pem"
 
                         echo "SSL files created in $WORKSPACE/nginx/ssl"
                         ls -la "$WORKSPACE/nginx/ssl" || true
