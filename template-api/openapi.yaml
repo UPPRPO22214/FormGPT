@@ -26,21 +26,37 @@ components:
           type: string
           format: date-time
 
-    Survey:
+    CreateSurveyRequest:
+      type: object
+      required:
+        - title
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        questions:
+          type: array
+          items:
+            $ref: "#/components/schemas/CreateQuestionRequest"
+
+    SurveyResponse:
       type: object
       properties:
         id:
-          type: integer
+          type: string
+          format: uuid
         title:
           type: string
         description:
           type: string
         ownerId:
-          type: integer
+          type: string
+          format: uuid
         questions:
           type: array
           items:
-            $ref: "#/components/schemas/Question"
+            $ref: "#/components/schemas/QuestionResponse"
         createdAt:
           type: string
           format: date-time
@@ -48,7 +64,29 @@ components:
           type: string
           format: date-time
 
-    Question:
+    CreateQuestionRequest:
+      type: object
+      required:
+        - title
+        - type
+      properties:
+        id:
+          type: integer
+          nullable: true
+          description: |
+            ID существующего вопроса для обновления.
+            Если null или отсутствует - создается новый вопрос.
+        title:
+          type: string
+        type:
+          type: string
+          enum: [single-choice, multiple-choice, text, scale-1-10]
+        options:
+          type: array
+          items:
+            type: string
+
+    QuestionResponse:
       type: object
       properties:
         id:
@@ -83,8 +121,6 @@ components:
       type: object
       properties:
         surveyId:
-          type: integer
-        userId:
           type: integer
         answers:
           type: array
@@ -195,7 +231,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/Survey"
+                  $ref: "#/components/schemas/SurveyResponse"
 
     post:
       summary: Создать новый опрос
@@ -206,14 +242,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/Survey"
+              $ref: "#/components/schemas/CreateSurveyRequest"
       responses:
-        '200':
-          description: Созданный опрос
+        '201':
+          description: Опрос создан
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Survey"
+                $ref: "#/components/schemas/SurveyResponse"
 
   /surveys/{surveyId}:
     get:
@@ -232,7 +268,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Survey"
+                $ref: "#/components/schemas/SurveyResponse"
 
     put:
       summary: Обновить опрос
@@ -249,14 +285,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/Survey"
+              $ref: "#/components/schemas/CreateSurveyRequest"
       responses:
         '200':
           description: Обновлённый опрос
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Survey"
+                $ref: "#/components/schemas/SurveyResponse"
 
     delete:
       summary: Удалить опрос
@@ -325,7 +361,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Survey"
+                $ref: "#/components/schemas/SurveyResponse"
 
   /gpt/surveys/{surveyId}/edit:
     put:
@@ -337,27 +373,27 @@ paths:
           name: surveyId
           required: true
           schema:
-            type: integer
+            type: string
+            format: uuid
       requestBody:
-        required: true
+        required: false
         content:
           application/json:
             schema:
               type: object
               properties:
-                survey:
-                  $ref: "#/components/schemas/Survey"
                 prompt:
                   type: string
                   description: Необязательный пользовательский промт для улучшения
                   nullable: true
+                  example: "Сделай вопросы более понятными для подростков"
       responses:
         '200':
           description: Улучшенный опрос
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Survey"
+                $ref: "#/components/schemas/SurveyResponse"
 
   /gpt/questions/{questionId}/edit:
     put:
@@ -371,25 +407,24 @@ paths:
           schema:
             type: integer
       requestBody:
-        required: true
+        required: false
         content:
           application/json:
             schema:
               type: object
               properties:
-                question:
-                  $ref: "#/components/schemas/Question"
                 prompt:
                   type: string
                   description: Необязательный пользовательский промт для улучшения
                   nullable: true
+                  example: "Сделай варианты ответа более разнообразными"
       responses:
         '200':
           description: Улучшенный вопрос
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Question"
+                $ref: "#/components/schemas/QuestionResponse"
 
   /gpt/surveys/{surveyId}/analyze:
     post:
@@ -401,13 +436,8 @@ paths:
           name: surveyId
           required: true
           schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/Survey"
+            type: string
+            format: uuid
       responses:
         '200':
           description: Рекомендации и оценка опроса
