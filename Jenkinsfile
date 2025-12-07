@@ -135,10 +135,7 @@ pipeline {
                     docker-compose --project-directory "$WORKSPACE" down || true
                 fi
 
-                # Удаляем ssl из воркспейса
-                shred -u "$WORKSPACE/nginx/ssl/privkey.pem" || rm -f "$WORKSPACE/nginx/ssl/privkey.pem" || true
-                rm -f "$WORKSPACE/nginx/ssl/fullchain.pem" || true
-                echo "Cleanup done"
+
             '''
         }
 
