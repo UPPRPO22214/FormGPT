@@ -28,11 +28,10 @@ pipeline {
                         echo 'Deploying to PRODUCTION (main branch)...'
 
                         // Сертификат из Jenkins credentials: KEYSTORE — путь к временному p12-файлу в воркспейсе агента
-                        withCredentials([certificate(
-                            credentialsId: 'ssl_certificate',
-                            keystoreVariable: 'KEYSTORE',
-                            keystorePasswordVariable: 'KEYSTORE_PASS'
-                        )]) {
+                        withCredentials([
+                            certificate(credentialsId: 'ssl_certificate', keystoreVariable: 'KEYSTORE'),
+                            string(credentialsId: 'ssl_p12_password', variable: 'KEYPASS')
+                        ]) {
                             // Создаём папку nginx/ssl в рабочем каталоге (WORKSPACE) — именно этот каталог будет использовать docker-compose
                             sh '''
                                 set -euo pipefail
@@ -41,13 +40,13 @@ pipeline {
                                 mkdir -p "$WORKSPACE/nginx/ssl"
 
                                 # Извлекаем приватный ключ (из временного p12 файла, предоставленного Jenkins)
-                                openssl pkcs12 -in "$KEYSTORE" -nodes -nocerts \
-                                        | sed -ne '/-----BEGIN PRIVATE KEY-----/,/-----END PRIVATE KEY-----/p' \
-                                        > "$WORKSPACE/nginx/ssl/privkey.pem"
+                                openssl pkcs12 -in "$KEYSTORE" -nocerts -nodes -passin pass:"$KEYSTORE_PASS" \
+                                  | sed -ne '/-----BEGIN PRIVATE KEY-----/,/-----END PRIVATE KEY-----/p' \
+                                  > "$WORKSPACE/nginx/ssl/privkey.pem"
 
-                                openssl pkcs12 -in "$KEYSTORE" -nodes -nokeys \
-                                       | sed -ne '/-----BEGIN CERTIFICATE-----/,/-----END CERTIFICATE-----/p' \
-                                        > "$WORKSPACE/nginx/ssl/fullchain.pem"
+                                # Извлекаем сертификат (полную цепочку)
+                                openssl pkcs12 -in "$KEYSTORE" -clcerts -nokeys -passin pass:"$KEYSTORE_PASS" \
+                                  > "$WORKSPACE/nginx/ssl/fullchain.pem"
 
                                 chmod 600 "$WORKSPACE/nginx/ssl/privkey.pem" "$WORKSPACE/nginx/ssl/fullchain.pem"
 
