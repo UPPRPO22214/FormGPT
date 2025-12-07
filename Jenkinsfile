@@ -40,6 +40,11 @@ pipeline {
                         echo "SSL files created in $WORKSPACE/nginx/ssl"
                         ls -la "$WORKSPACE/nginx/ssl" || true
 
+                        mkdir -p "$WORKSPACE/frontend/nginx/ssl"
+                        cp "$WORKSPACE/nginx/ssl/fullchain.pem" "$WORKSPACE/frontend/nginx/ssl/"
+                        cp "$WORKSPACE/nginx/ssl/privkey.pem" "$WORKSPACE/frontend/nginx/ssl/"
+
+
                     '''
                 }
                 sh '''
