@@ -13,6 +13,34 @@ pipeline {
         stage('Build') {
             steps {
                 echo "Building on branch: ${env.BRANCH_NAME}"
+                // Сертификат из Jenkins credentials: KEYSTORE — путь к временному p12-файлу в воркспейсе агента
+                withCredentials([
+                    certificate(credentialsId: 'ssl_certificate', keystoreVariable: 'KEYSTORE'),
+                    string(credentialsId: 'ssl_p12_password', variable: 'KEYSTORE_PASS')
+                ]) {
+                    // Создаём папку nginx/ssl в рабочем каталоге (WORKSPACE) — именно этот каталог будет использовать docker-compose
+                    sh '''
+                        set -euo pipefail
+
+                        echo "Workspace: $WORKSPACE"
+                        mkdir -p "$WORKSPACE/nginx/ssl"
+
+                        # Извлекаем приватный ключ (из временного p12 файла, предоставленного Jenkins)
+                        openssl pkcs12 -in "$KEYSTORE" -nocerts -nodes -passin pass:"$KEYSTORE_PASS" \
+                          | sed -ne '/-----BEGIN PRIVATE KEY-----/,/-----END PRIVATE KEY-----/p' \
+                          > "$WORKSPACE/nginx/ssl/privkey.pem"
+
+                        # Извлекаем сертификат (полную цепочку)
+                        openssl pkcs12 -in "$KEYSTORE" -clcerts -nokeys -passin pass:"$KEYSTORE_PASS" \
+                          > "$WORKSPACE/nginx/ssl/fullchain.pem"
+
+                        chmod 600 "$WORKSPACE/nginx/ssl/privkey.pem" "$WORKSPACE/nginx/ssl/fullchain.pem"
+
+                        echo "SSL files created in $WORKSPACE/nginx/ssl"
+                        ls -la "$WORKSPACE/nginx/ssl" || true
+
+                    '''
+                }
                 sh '''
                     docker-compose version
                     docker-compose build --pull --no-cache
@@ -26,40 +54,6 @@ pipeline {
                     // Правильная логика: main = production
                     if (env.BRANCH_NAME != 'main') {
                         echo 'Deploying to PRODUCTION (main branch)...'
-
-                        // Сертификат из Jenkins credentials: KEYSTORE — путь к временному p12-файлу в воркспейсе агента
-                        withCredentials([
-                            certificate(credentialsId: 'ssl_certificate', keystoreVariable: 'KEYSTORE'),
-                            string(credentialsId: 'ssl_p12_password', variable: 'KEYSTORE_PASS')
-                        ]) {
-                            // Создаём папку nginx/ssl в рабочем каталоге (WORKSPACE) — именно этот каталог будет использовать docker-compose
-                            sh '''
-                                set -euo pipefail
-
-                                echo "Workspace: $WORKSPACE"
-                                mkdir -p "$WORKSPACE/nginx/ssl"
-
-                                # Извлекаем приватный ключ (из временного p12 файла, предоставленного Jenkins)
-                                openssl pkcs12 -in "$KEYSTORE" -nocerts -nodes -passin pass:"$KEYSTORE_PASS" \
-                                  | sed -ne '/-----BEGIN PRIVATE KEY-----/,/-----END PRIVATE KEY-----/p' \
-                                  > "$WORKSPACE/nginx/ssl/privkey.pem"
-
-                                # Извлекаем сертификат (полную цепочку)
-                                openssl pkcs12 -in "$KEYSTORE" -clcerts -nokeys -passin pass:"$KEYSTORE_PASS" \
-                                  > "$WORKSPACE/nginx/ssl/fullchain.pem"
-
-                                chmod 600 "$WORKSPACE/nginx/ssl/privkey.pem" "$WORKSPACE/nginx/ssl/fullchain.pem"
-
-                                echo "SSL files created in $WORKSPACE/nginx/ssl"
-                                ls -la "$WORKSPACE/nginx/ssl" || true
-
-                                mkdir -p "$WORKSPACE/frontend/nginx/ssl"
-                                cp "$WORKSPACE/nginx/ssl/fullchain.pem" "$WORKSPACE/frontend/nginx/ssl/"
-                                cp "$WORKSPACE/nginx/ssl/privkey.pem" "$WORKSPACE/frontend/nginx/ssl/"
-
-                            '''
-                        }
-
                         // Останавливаем предыдущую конфигурацию (без ошибок)
                         sh 'docker-compose --project-directory "$WORKSPACE" -f "$WORKSPACE/docker-compose.prod.yml" down || true'
 
