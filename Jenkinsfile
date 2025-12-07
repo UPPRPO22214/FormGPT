@@ -41,13 +41,13 @@ pipeline {
                                 mkdir -p "$WORKSPACE/nginx/ssl"
 
                                 # Извлекаем приватный ключ (из временного p12 файла, предоставленного Jenkins)
-                                openssl pkcs12 -in "$KEYSTORE" -nocerts -nodes -passin pass:"$KEYSTORE_PASS" \
-                                  | sed -ne '/-----BEGIN PRIVATE KEY-----/,/-----END PRIVATE KEY-----/p' \
-                                  > "$WORKSPACE/nginx/ssl/privkey.pem"
+                                openssl pkcs12 -in "$KEYSTORE" -nodes -nocerts \
+                                        | sed -ne '/-----BEGIN PRIVATE KEY-----/,/-----END PRIVATE KEY-----/p' \
+                                        > "$WORKSPACE/nginx/ssl/privkey.pem"
 
-                                # Извлекаем сертификат (полную цепочку)
-                                openssl pkcs12 -in "$KEYSTORE" -clcerts -nokeys -passin pass:"$KEYSTORE_PASS" \
-                                  > "$WORKSPACE/nginx/ssl/fullchain.pem"
+                                openssl pkcs12 -in "$KEYSTORE" -nodes -nokeys \
+                                       | sed -ne '/-----BEGIN CERTIFICATE-----/,/-----END CERTIFICATE-----/p' \
+                                        > "$WORKSPACE/nginx/ssl/fullchain.pem"
 
                                 chmod 600 "$WORKSPACE/nginx/ssl/privkey.pem" "$WORKSPACE/nginx/ssl/fullchain.pem"
 
