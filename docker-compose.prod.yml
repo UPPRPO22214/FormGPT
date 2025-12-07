@@ -65,7 +65,7 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ./nginx/conf:/etc/nginx/conf.d:ro
+      - $WORKSPACE/nginx/conf:/etc/nginx/conf.d:ro
     restart: unless-stopped
 
 volumes:
