@@ -58,7 +58,7 @@ pipeline {
             steps {
                 script {
                     // Правильная логика: main = production
-                    if (env.BRANCH_NAME != 'main') {
+                    if (env.BRANCH_NAME == 'main') {
                         echo 'Deploying to PRODUCTION (main branch)...'
                         // Останавливаем предыдущую конфигурацию (без ошибок)
                         sh 'docker-compose --project-directory "$WORKSPACE" -f "$WORKSPACE/docker-compose.prod.yml" down || true'
@@ -130,7 +130,7 @@ pipeline {
                 docker image prune -f || true
 
                 # Сохраняем образы для main и develop, для остальных удаляем
-                if [ "${BRANCH_NAME}" != "main" ] || [ "${BRANCH_NAME}" = "develop" ]; then
+                if [ "${BRANCH_NAME}" = "main" ] || [ "${BRANCH_NAME}" = "develop" ]; then
                     echo "Production/develop branch, preserving images"
                 else
                     echo "Removing images for ${BRANCH_NAME}"
