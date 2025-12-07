@@ -106,7 +106,7 @@ pipeline {
 
                 docker image prune -f || true
 
-                if [ "${BRANCH_NAME}" = "main" ] || [ "${BRANCH_NAME}" = "develop" ]; then
+                if [ "${BRANCH_NAME}" != "main" ] || [ "${BRANCH_NAME}" = "develop" ]; then
                     echo "Production branch, preserving images"
                 else
                     echo "Removing images for ${BRANCH_NAME}"
