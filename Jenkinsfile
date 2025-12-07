@@ -25,28 +25,26 @@ pipeline {
                 script {
                     if (env.BRANCH_NAME != 'main') {
                         echo 'Deploying to PRODUCTION (main branch)...'
-                        withCredentials([certificate(
-                            credentialsId: 'ssl_certificate',
-                            keystoreVariable: 'KEYSTORE',
-                            keystorePasswordVariable: 'KEYSTORE_PASS'
-                        )]) {
-                            sh '''
-                                mkdir -p nginx/ssl
+                       withCredentials([certificate(credentialsId: 'ssl_certificate', keystoreVariable: 'KEYSTORE', keystorePasswordVariable: 'KEYSTORE_PASS')]) {
+                          sh '''
+                            set -euo pipefail
+                            # WORKSPACE должен быть текущей директорией где docker-compose.yml
+                            mkdir -p nginx/ssl
 
-                                # KEYSTORE — это путь к временному p12-файлу, сгенерированному Jenkins.
-                                # KEYSTORE_PASS — пароль, который Jenkins автоматически генерирует.
+                            # извлечение ключа и цепочки из p12
+                            openssl pkcs12 -in "$KEYSTORE" -nocerts -nodes -passin pass:"$KEYSTORE_PASS" \
+                              | sed -ne '/-----BEGIN PRIVATE KEY-----/,/-----END PRIVATE KEY-----/p' \
+                              > nginx/ssl/privkey.pem
 
-                                # Извлекаем приватный ключ
-                                openssl pkcs12 -in "$KEYSTORE" -nocerts -nodes -passin pass:"$KEYSTORE_PASS" \
-                                    | sed -ne '/-----BEGIN PRIVATE KEY-----/,/-----END PRIVATE KEY-----/p' \
-                                    > nginx/ssl/privkey.pem
+                            openssl pkcs12 -in "$KEYSTORE" -clcerts -nokeys -passin pass:"$KEYSTORE_PASS" \
+                              > nginx/ssl/fullchain.pem
 
-                                # Извлекаем сертификат (полную цепочку)
-                                openssl pkcs12 -in "$KEYSTORE" -clcerts -nokeys -passin pass:"$KEYSTORE_PASS" \
-                                    > nginx/ssl/fullchain.pem
+                            chmod 600 nginx/ssl/privkey.pem nginx/ssl/fullchain.pem
 
-                                chmod 600 nginx/ssl/privkey.pem nginx/ssl/fullchain.pem
-                            '''
+                            # sanity-check: покажем короткий вывод
+                            echo "SSL files created:"
+                            ls -l nginx/ssl || true
+                          '''
                         }
                         sh 'docker-compose down || true'
 
