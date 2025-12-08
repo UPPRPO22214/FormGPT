@@ -58,7 +58,7 @@ services:
       - VITE_API_URL=/api
     depends_on:
       survey-service:
-        condition: service_healthy
+        condition:  service_healthy
       python-service:
         condition: service_healthy
     restart: unless-stopped
