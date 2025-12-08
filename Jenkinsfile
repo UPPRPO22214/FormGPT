@@ -7,8 +7,8 @@ pipeline {
         POSTGRES_PASSWORD = credentials('ec53b390-40e3-42f8-931f-d67352ddb1be')
         GIGACHAT_CREDENTIALS = credentials('985545c7-9661-4fdf-a341-500ed9cc8b6c')
         COMPOSE_PROJECT_NAME = "survey_${normalizeBranchName(env.BRANCH_NAME)}"
-        IS_PRODUCTION = "${env.BRANCH_NAME != 'main'}"
-        COMPOSE_FILE = "${env.BRANCH_NAME != 'main' ? 'docker-compose.prod.yml' : 'docker-compose.yml'}"
+        IS_PRODUCTION = "${env.BRANCH_NAME == 'main'}"
+        COMPOSE_FILE = "${env.BRANCH_NAME == 'main' ? 'docker-compose.prod.yml' : 'docker-compose.yml'}"
     }
 
     stages {
