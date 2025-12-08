@@ -53,7 +53,9 @@ services:
       start_period: 30s
 
   nginx:
-    build: ./frontend
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
     environment:
       - VITE_API_URL=/api
     depends_on:
