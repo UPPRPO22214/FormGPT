@@ -5,8 +5,8 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-import com.formgpt.survey_service.dto.JwtAuthenticationResponse;
-import com.formgpt.survey_service.dto.AuthRequest;
+import com.formgpt.survey_service.dto.JwtAuthenticationResponseDTO;
+import com.formgpt.survey_service.dto.AuthRequestDTO;
 import com.formgpt.survey_service.entity.User;
 
 @Service
@@ -18,7 +18,7 @@ public class AuthenticationService {
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
 
-    public JwtAuthenticationResponse signUp(AuthRequest request) {
+    public JwtAuthenticationResponseDTO signUp(AuthRequestDTO request) {
         var user = new User();
         user.setEmail(request.getEmail());
         user.setHashPassword(passwordEncoder.encode(request.getPassword()));
@@ -26,10 +26,10 @@ public class AuthenticationService {
         userService.create(user);
 
         var jwt = jwtService.generateToken(user);
-        return new JwtAuthenticationResponse(jwt);
+        return new JwtAuthenticationResponseDTO(jwt);
     }
 
-    public JwtAuthenticationResponse signIn(AuthRequest request) {
+    public JwtAuthenticationResponseDTO signIn(AuthRequestDTO request) {
 
         authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(
@@ -41,6 +41,6 @@ public class AuthenticationService {
         var user = userService.getByEmail(request.getEmail());
 
         var jwt = jwtService.generateToken(user);
-        return new JwtAuthenticationResponse(jwt);
+        return new JwtAuthenticationResponseDTO(jwt);
     }
 }

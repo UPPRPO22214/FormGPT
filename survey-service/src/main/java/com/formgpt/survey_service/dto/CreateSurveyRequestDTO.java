@@ -5,11 +5,11 @@ import jakarta.validation.constraints.NotBlank;
 import java.util.List;
 
 @Data
-public class CreateSurveyRequest {
+public class CreateSurveyRequestDTO {
     @NotBlank(message = "Title is required")
     private String title;
 
     private String description;
 
-    private List<CreateQuestionRequest> questions;
+    private List<CreateQuestionRequestDTO> questions;
 }

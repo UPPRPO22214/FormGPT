@@ -19,32 +19,33 @@ public class SurveyController {
     private final UserService userService;
 
     @GetMapping
-    public ResponseEntity<List<SurveyResponse>> getUserSurveys() {
+    public ResponseEntity<List<SurveyResponseDTO>> getUserSurveys() {
         var currentUser = userService.getCurrentUser();
-        List<SurveyResponse> surveys = surveyService.getUserSurveys(currentUser);
+        List<SurveyResponseDTO> surveys = surveyService.getUserSurveys(currentUser);
         return ResponseEntity.ok(surveys);
     }
 
     @GetMapping("/{surveyId}")
-    public ResponseEntity<SurveyResponse> getSurvey(@PathVariable Long surveyId) {
-        SurveyResponse survey = surveyService.getSurvey(surveyId);
+    public ResponseEntity<SurveyWithAnswersResponseDTO> getSurvey(@PathVariable Long surveyId) {
+        var currentUser = userService.getCurrentUser();
+        SurveyWithAnswersResponseDTO survey = surveyService.getSurveyWithAnswers(surveyId, currentUser);
         return ResponseEntity.ok(survey);
     }
 
     @PostMapping
-    public ResponseEntity<SurveyResponse> createSurvey(
-            @Valid @RequestBody CreateSurveyRequest request) {
+    public ResponseEntity<SurveyResponseDTO> createSurvey(
+            @Valid @RequestBody CreateSurveyRequestDTO request) {
         var currentUser = userService.getCurrentUser();
-        SurveyResponse survey = surveyService.createSurvey(request, currentUser);
+        SurveyResponseDTO survey = surveyService.createSurvey(request, currentUser);
         return ResponseEntity.status(HttpStatus.CREATED).body(survey);
     }
 
     @PutMapping("/{surveyId}")
-    public ResponseEntity<SurveyResponse> updateSurvey(
+    public ResponseEntity<SurveyResponseDTO> updateSurvey(
             @PathVariable Long surveyId,
-            @Valid @RequestBody CreateSurveyRequest request) {
+            @Valid @RequestBody UpdateSurveyRequestDTO request) {
         var currentUser = userService.getCurrentUser();
-        SurveyResponse survey = surveyService.updateSurvey(surveyId, request, currentUser);
+        SurveyResponseDTO survey = surveyService.updateSurvey(surveyId, request, currentUser);
         return ResponseEntity.ok(survey);
     }
 
@@ -58,17 +59,17 @@ public class SurveyController {
     @PostMapping("/{surveyId}/answers")
     public ResponseEntity<?> submitAnswers(
             @PathVariable Long surveyId,
-            @Valid @RequestBody SurveyAnswer answerDTO) {
+            @Valid @RequestBody SurveyAnswerDTO answerDTO) {
         var currentUser = userService.getCurrentUser();
         surveyService.submitAnswers(surveyId, answerDTO, currentUser);
         return ResponseEntity.ok().body(Map.of("success", true));
     }
 
     @GetMapping("/{surveyId}/stats")
-    public ResponseEntity<SurveyStats> getSurveyStats(
+    public ResponseEntity<SurveyStatsDTO> getSurveyStats(
             @PathVariable Long surveyId) {
         var currentUser = userService.getCurrentUser();
-        SurveyStats stats = surveyService.getSurveyStats(surveyId, currentUser);
+        SurveyStatsDTO stats = surveyService.getSurveyStats(surveyId, currentUser);
         return ResponseEntity.ok(stats);
     }
 }

@@ -4,7 +4,7 @@ import lombok.Data;
 import java.util.Map;
 
 @Data
-public class ScaleStats {
+public class ScaleStatsDTO {
     private Double average;
     private Integer min;
     private Integer max;

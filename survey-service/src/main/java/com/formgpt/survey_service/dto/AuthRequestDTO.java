@@ -6,7 +6,7 @@ import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 @Data
-public class AuthRequest {
+public class AuthRequestDTO {
 
     @Size(min = 5, max = 255, message = "Адрес электронной почты должен содержать от 5 до 255 символов")
     @NotBlank(message = "Адрес электронной почты не может быть пустыми")

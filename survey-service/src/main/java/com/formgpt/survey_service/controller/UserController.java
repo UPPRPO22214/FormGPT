@@ -1,6 +1,6 @@
 package com.formgpt.survey_service.controller;
 
-import com.formgpt.survey_service.dto.UserProfileResponse;
+import com.formgpt.survey_service.dto.UserProfileResponseDTO;
 import com.formgpt.survey_service.service.UserService;
 
 import lombok.RequiredArgsConstructor;
@@ -16,8 +16,8 @@ public class UserController {
     private final UserService userService;
 
     @GetMapping("/me")
-    public ResponseEntity<UserProfileResponse> getCurrentUser() {
+    public ResponseEntity<UserProfileResponseDTO> getCurrentUser() {
         var currentUser = userService.getCurrentUser();
-        return ResponseEntity.ok(UserProfileResponse.from(currentUser));
+        return ResponseEntity.ok(UserProfileResponseDTO.from(currentUser));
     }
 }
