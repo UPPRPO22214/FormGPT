@@ -6,12 +6,12 @@ import java.util.List;
 import java.util.UUID;
 
 @Data
-public class SurveyResponse {
+public class SurveyResponseDTO {
     private Long id;
     private String title;
     private String description;
     private UUID ownerId;
-    private List<QuestionResponse> questions;
+    private List<QuestionResponseDTO> questions;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

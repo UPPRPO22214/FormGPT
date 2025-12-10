@@ -7,7 +7,7 @@ import jakarta.validation.constraints.NotNull;
 import java.util.List;
 
 @Data
-public class CreateQuestionRequest {
+public class CreateQuestionRequestDTO {
     private Long id;
 
     @NotBlank(message = "Question title is required")
