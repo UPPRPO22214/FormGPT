@@ -229,6 +229,9 @@ public class SurveyService {
 
         questionRepository.save(question);
 
+        List<QuestionOption> options = new ArrayList<>();
+        question.setOptions(options);
+
         form.getQuestions().add(question);
 
         if (dto.getOptions() != null) {
@@ -239,6 +242,7 @@ public class SurveyService {
                         .orderIndex(i)
                         .build();
                 questionOptionRepository.save(option);
+                options.add(option);
             }
         }
     }

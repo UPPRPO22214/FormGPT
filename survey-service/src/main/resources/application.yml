@@ -25,5 +25,9 @@ token:
   signing:
     key: ${JWT_TOKEN:53A73E5F1C4E0A2D3B5F2D784E6A1B423D6F247D1F6E5C3A596D635A75327855}
 
+gpt:
+  service:
+    url: ${GPT_SERVICE_URL:http://localhost:8082}
+
 server:
   port: ${SPRING_PORT:8081}
