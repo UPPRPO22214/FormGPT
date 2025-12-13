@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 
 from dependencies import LLMServiceDep
-from schemas.forms import FormGenerationSchema, FormSchema
+from schemas.forms import FormGenerationSchema, FormSchema, FormImprovementSchema
 from services.llm_service import LLMService
 
 router = APIRouter(
@@ -14,3 +14,8 @@ router = APIRouter(
 @router.post("/create")
 async def create(generation_model: FormGenerationSchema, service: LLMServiceDep) -> FormSchema:
     return service.create_form(generation_model)
+
+
+@router.post("/improve")
+async def improve(generation_model: FormImprovementSchema, service: LLMServiceDep) -> FormSchema:
+    return service.improve_form(generation_model)

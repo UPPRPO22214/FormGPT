@@ -14,7 +14,7 @@ class AnswerType(Enum):
 class QuestionSchema(BaseModel):
     text: str = Field(..., description="Question text")
     answer_type: AnswerType = Field(..., description="Type of the answer", examples=[answer for answer in AnswerType])
-    answer_options: list[str] = Field(..., description="Answer options")
+    answer_options: Optional[list[str]] = Field(None, description="Answer options")
 
     class Config:
         from_attributes = True  # In case from_attributes is True Pydantic automatically takes attributes from the orm model after conversation
