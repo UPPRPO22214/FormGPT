@@ -29,6 +29,18 @@ class QuestionGenerationSchema(BaseModel):
     )
 
 
+class MultipleQuestionGenerationSchema(BaseModel):
+    topic: Optional[str] = Field(None, description="Topic of the question")
+    target_audience: Optional[str] = Field(
+        None,
+        description="Target audience for the question (optional)",
+        example="students"
+    )
+    questions_count: Optional[int] = Field(1, description="Question count", examples=[1, 2])
+    previous_questions: Optional[list[QuestionSchema]] = Field(None,
+                                                               description="Previous questions to get the context")
+
+
 class QuestionImprovementSchema(BaseModel):
     text: str = Field(..., description="Question to improve")
     answer_type: Optional[AnswerType] = Field(None, description="Type of the answer",
