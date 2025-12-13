@@ -22,3 +22,11 @@ class FormGenerationSchema(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class FormImprovementSchema(BaseModel):
+    prompt: Optional[str] = Field(None, description="Prompt for the form")
+    form: FormSchema = Field(..., description="Form to improve")
+
+    class Config:
+        from_attributes = True

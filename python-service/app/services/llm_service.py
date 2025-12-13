@@ -5,8 +5,9 @@ from config import settings
 from gigachat import GigaChat
 from gigachat.models import Chat
 
-from schemas.forms import FormSchema, FormGenerationSchema
-from schemas.questions import QuestionSchema, AnswerType, QuestionImprovementSchema, QuestionGenerationSchema
+from schemas.forms import FormSchema, FormGenerationSchema, FormImprovementSchema
+from schemas.questions import QuestionSchema, AnswerType, QuestionImprovementSchema, QuestionGenerationSchema, \
+    MultipleQuestionGenerationSchema
 from schemas.utils import MessageSchema
 from services.llm_service_interface import LLMServiceInterface
 
@@ -93,6 +94,67 @@ class LLMService(LLMServiceInterface):
                                   f"Типы вопросов {[answer_type.value for answer_type in AnswerType]}"
                           ))
         return QuestionSchema(**self.generate_answer_by_messages(messages))
+
+    def improve_form(self, form_schema: FormImprovementSchema) -> FormSchema:
+        messages = [
+            MessageSchema(role="system", content=self._system_prompt),
+            MessageSchema(role="user", content=f"Вот моя форма:{form_schema.model_dump_json()}")
+        ]
+
+        if form_schema.prompt:
+            messages.append(
+                MessageSchema(role="user", content=f"{form_schema.prompt}"))
+        else:
+            messages.append(MessageSchema(role="user",
+                                          content="Улучши мою форму, возможно надо поменять тип вопроса или варианты ответов."))
+
+        form = FormSchema(title="Form title", questions=[
+            QuestionSchema(text="Вопрос", answer_type=AnswerType.MULTIPLE_CHOICE,
+                           answer_options=["Ответ 1", "Ответ 2"]),
+            QuestionSchema(text="Вопрос", answer_type=AnswerType.SINGLE_CHOICE, answer_options=["Ответ 1"])])
+
+        messages.append(
+            MessageSchema(role="user",
+                          content="Ответ пришли в формате JSON:"
+                                  f"ПРИМЕР ОТВЕТА: {form.model_dump_json()}"
+                                  "Верни ТОЛЬКО JSON без каких-либо пояснений."
+                                  f"Типы вопросов {[answer_type.value for answer_type in AnswerType]}"
+                          ))
+        return FormSchema(**self.generate_answer_by_messages(messages))
+
+    def generate_multiple_questions(self, multiple_question_generation: MultipleQuestionGenerationSchema) -> list[
+        QuestionSchema]:
+        messages = [
+            MessageSchema(role="system", content=self._system_prompt)
+        ]
+        if multiple_question_generation.topic:
+            messages.append(MessageSchema(role="user",
+                                          content=f"Тема опроса f{multiple_question_generation.topic}"))
+        if multiple_question_generation.target_audience:
+            messages.append(
+                MessageSchema(role="user",
+                              content=f"Целевая аудитория опроса: {multiple_question_generation.target_audience}"))
+
+        if multiple_question_generation.previous_questions:
+            messages.append(
+                MessageSchema(role="user",
+                              content=f"Вопросы должны совпадать по теме с предыдущими: {[question.model_dump_json() for question in multiple_question_generation.previous_questions]}"))
+
+        messages.append(
+            MessageSchema(role="user",
+                          content=f"Сгененрируй {multiple_question_generation.questions_count} дополнительных вопросов"))
+
+        question_example = QuestionSchema(text="Вопрос", answer_type=AnswerType.MULTIPLE_CHOICE,
+                                          answer_options=["Ответ 1", "Ответ 2"])
+
+        messages.append(
+            MessageSchema(role="user",
+                          content="Ответ пришли в СТРОГО В формате JSON:"
+                                  f"ПРИМЕР ОТВЕТА: [{question_example.model_dump_json()},{question_example.model_dump_json()}]"
+                                  "Верни ТОЛЬКО JSON без каких-либо пояснений."
+                                  f"Типы вопросов {[answer_type.value for answer_type in AnswerType]}"
+                          ))
+        return [QuestionSchema(**question) for question in self.generate_answer_by_messages(messages)]
 
     def generate_answer_by_messages(self, messages: list[MessageSchema]):
         chat = Chat(
