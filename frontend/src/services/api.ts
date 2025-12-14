@@ -15,6 +15,11 @@ import {
   GPTAnalysis,
   SurveyAnswerRequest,
 } from '../types/survey';
+import {
+  transformSurveyFromBackend,
+  transformCreateSurveyRequestToBackend,
+  transformSurveyAnswerRequestToBackend,
+} from '../utils/apiTransformers';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -29,6 +34,8 @@ api.interceptors.request.use(
     const token = localStorage.getItem(STORAGE_KEYS.TOKEN);
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
+    } else {
+      console.warn('Токен не найден в localStorage для запроса:', config.url);
     }
     return config;
   },
@@ -37,13 +44,17 @@ api.interceptors.request.use(
   }
 );
 
-// Interceptor для обработки ошибок 401
+// Interceptor для обработки ошибок 401 и 403
 api.interceptors.response.use(
   (response) => response,
   (error: AxiosError) => {
-    if (error.response?.status === 401) {
+    if (error.response?.status === 401 || error.response?.status === 403) {
       // Удаляем токен и перенаправляем на страницу входа
       localStorage.removeItem(STORAGE_KEYS.TOKEN);
+      // Для 403 показываем более понятное сообщение
+      if (error.response?.status === 403) {
+        console.error('Доступ запрещен. Возможно, токен истек или у вас нет прав доступа.');
+      }
       window.location.href = '/login';
     }
     return Promise.reject(error);
@@ -78,38 +89,92 @@ export const userApi = {
   },
 };
 
+/**
+ * Преобразует surveyId в integer для запросов к API
+ * Бэкенд ожидает integer в путях, но может возвращать UUID в ответах
+ */
+const normalizeSurveyId = (id: string | number | undefined): string => {
+  if (!id) throw new Error('Survey ID is required');
+  // Если это число или строка-число, используем как есть
+  if (typeof id === 'number') return String(id);
+  // Пытаемся преобразовать в число, если это возможно
+  const numId = Number(id);
+  if (!isNaN(numId) && numId > 0) {
+    return String(numId);
+  }
+  // Если это UUID или другой формат, возвращаем как есть
+  return String(id);
+};
+
 export const surveyApi = {
   getAll: async (): Promise<Survey[]> => {
-    const response = await api.get<Survey[]>('/surveys');
-    return response.data;
+    const response = await api.get<any[]>('/surveys');
+    return response.data.map(transformSurveyFromBackend);
   },
 
   getById: async (id: string): Promise<Survey> => {
-    const response = await api.get<Survey>(`/surveys/${id}`);
-    return response.data;
+    const normalizedId = normalizeSurveyId(id);
+    const response = await api.get<any>(`/surveys/${normalizedId}`);
+    return transformSurveyFromBackend(response.data);
   },
 
   create: async (data: CreateSurveyRequest): Promise<Survey> => {
-    const response = await api.post<Survey>('/surveys', data);
-    return response.data;
+    const backendData = transformCreateSurveyRequestToBackend(data);
+    const response = await api.post<any>('/surveys', backendData);
+    return transformSurveyFromBackend(response.data);
   },
 
   update: async (id: string, data: UpdateSurveyRequest): Promise<Survey> => {
-    const response = await api.put<Survey>(`/surveys/${id}`, data);
-    return response.data;
+    const normalizedId = normalizeSurveyId(id);
+    const backendData = transformCreateSurveyRequestToBackend({
+      title: data.title || '',
+      description: data.description || '',
+      questions: data.questions || [],
+    });
+    const response = await api.put<any>(`/surveys/${normalizedId}`, backendData);
+    return transformSurveyFromBackend(response.data);
   },
 
   delete: async (id: string): Promise<void> => {
-    await api.delete(`/surveys/${id}`);
+    const normalizedId = normalizeSurveyId(id);
+    await api.delete(`/surveys/${normalizedId}`);
   },
 
   analyze: async (id: string, survey: Survey): Promise<GPTAnalysis> => {
-    const response = await api.post<GPTAnalysis>(`/gpt/surveys/${id}/analyze`, survey);
+    // Для /gpt/surveys/{surveyId}/analyze используется UUID (string) согласно OpenAPI
+    // Используем survey.id если он есть, иначе id из параметра
+    const surveyId = survey.id || id;
+    // Не преобразуем в число для этого эндпоинта, так как ожидается UUID
+    const response = await api.post<GPTAnalysis>(`/gpt/surveys/${surveyId}/analyze`, survey);
     return response.data;
   },
 
   submitAnswers: async (surveyId: string, data: SurveyAnswerRequest): Promise<{ success: boolean }> => {
-    const response = await api.post<{ success: boolean }>(`/surveys/${surveyId}/answers`, data);
+    const normalizedId = normalizeSurveyId(surveyId);
+    const backendData = transformSurveyAnswerRequestToBackend(data);
+    console.log('Submitting to backend:', {
+      url: `/surveys/${normalizedId}/answers`,
+      data: backendData
+    });
+    try {
+      const response = await api.post<{ success: boolean }>(`/surveys/${normalizedId}/answers`, backendData);
+      console.log('Backend response:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('Backend error details:', {
+        status: error?.response?.status,
+        data: error?.response?.data,
+        message: error?.message
+      });
+      throw error;
+    }
+  },
+
+  getAnalytics: async (surveyId: string, includeGPT: boolean = false): Promise<any> => {
+    const normalizedId = normalizeSurveyId(surveyId);
+    const response = await api.get<any>(`/surveys/${normalizedId}/analytics`, {
+      params: { includeGPT }
+    });
     return response.data;
   },
 };

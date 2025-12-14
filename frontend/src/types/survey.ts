@@ -14,6 +14,7 @@ export interface Question {
   min?: number; // Для scale
   max?: number; // Для scale
   order: number;
+  userAnswer?: string | string[]; // Ответ пользователя (для отображения уже заполненных ответов)
 }
 
 export interface Survey {
@@ -49,7 +50,7 @@ export interface Answer {
 
 export interface SurveyAnswerRequest {
   surveyId: string | number;
-  userId: number;
+  userId: string; // UUID из бэкенда
   answers: Answer[];
 }
 

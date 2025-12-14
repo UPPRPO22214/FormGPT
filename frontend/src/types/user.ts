@@ -1,5 +1,5 @@
 export interface User {
-  id: number;
+  id: string; // UUID из бэкенда
   email: string;
   name?: string;
   createdAt: string;
