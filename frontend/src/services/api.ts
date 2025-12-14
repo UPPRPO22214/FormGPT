@@ -169,6 +169,14 @@ export const surveyApi = {
       throw error;
     }
   },
+
+  getAnalytics: async (surveyId: string, includeGPT: boolean = false): Promise<any> => {
+    const normalizedId = normalizeSurveyId(surveyId);
+    const response = await api.get<any>(`/surveys/${normalizedId}/analytics`, {
+      params: { includeGPT }
+    });
+    return response.data;
+  },
 };
 
 export default api;

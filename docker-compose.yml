@@ -56,8 +56,6 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile.dev
-    ports:
-      - "80:80"
     environment:
       - VITE_API_URL=/api
     depends_on:
