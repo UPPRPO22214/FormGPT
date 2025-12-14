@@ -49,13 +49,20 @@ api.interceptors.response.use(
   (response) => response,
   (error: AxiosError) => {
     if (error.response?.status === 401 || error.response?.status === 403) {
-      // Удаляем токен и перенаправляем на страницу входа
-      localStorage.removeItem(STORAGE_KEYS.TOKEN);
-      // Для 403 показываем более понятное сообщение
-      if (error.response?.status === 403) {
-        console.error('Доступ запрещен. Возможно, токен истек или у вас нет прав доступа.');
+      const url = error.config?.url || '';
+      const isAuthEndpoint = url.includes('/auth/login') || url.includes('/auth/register');
+      
+      // Не делаем редирект для ошибок логина/регистрации - это ошибки самих операций, а не проблемы с токеном
+      // Редирект нужен только для ошибок авторизации при запросах к защищенным ресурсам
+      if (!isAuthEndpoint) {
+        // Удаляем токен и перенаправляем на страницу входа только для защищенных ресурсов
+        localStorage.removeItem(STORAGE_KEYS.TOKEN);
+        // Для 403 показываем более понятное сообщение
+        if (error.response?.status === 403) {
+          console.error('Доступ запрещен. Возможно, токен истек или у вас нет прав доступа.');
+        }
+        window.location.href = '/login';
       }
-      window.location.href = '/login';
     }
     return Promise.reject(error);
   }

@@ -33,7 +33,7 @@ export const LoginPage = () => {
       setError(null);
       await login(data);
       navigate('/');
-    } catch (err) {
+    } catch (err: any) {
       // Ошибка уже обработана в store
     }
   };
