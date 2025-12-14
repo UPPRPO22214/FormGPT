@@ -54,3 +54,43 @@ export interface SurveyAnswerRequest {
   answers: Answer[];
 }
 
+// Типы для статистики опросов
+export interface ChoiceDistribution {
+  options: string[];
+  counts: number[];
+  percentages: number[];
+}
+
+export interface ScaleDistribution {
+  min: number;
+  max: number;
+  average: number;
+  distribution: number[]; // Количество ответов для каждой оценки (1-10)
+  median: number;
+}
+
+export interface TextAnalytics {
+  totalAnswers: number;
+  wordCloud: string[];
+  sampleAnswers: string[];
+}
+
+export interface QuestionAnalytics {
+  questionId: number;
+  questionTitle: string;
+  questionType: string;
+  totalAnswers: number;
+  answerDistribution: ChoiceDistribution | ScaleDistribution | TextAnalytics;
+}
+
+export interface SurveyAnalytics {
+  surveyId: number;
+  title: string;
+  description: string;
+  totalRespondents: number;
+  completedCount: number;
+  incompletedCount: number;
+  questionsAnalytics: QuestionAnalytics[];
+  gptAnalysis?: string | null;
+}
+

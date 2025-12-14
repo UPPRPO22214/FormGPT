@@ -8,8 +8,10 @@ interface QuestionItemProps {
   onUpdate: (question: Question) => void;
   onDelete: (id: string) => void;
   onDuplicate: (id: string) => void;
+  onImprove?: (id: string, prompt?: string) => void;
   isDragging?: boolean;
   index: number;
+  canImprove?: boolean;
 }
 
 const questionTypeLabels: Record<QuestionType, string> = {
@@ -47,8 +49,10 @@ export const QuestionItem = ({
   onUpdate,
   onDelete,
   onDuplicate,
+  onImprove,
   isDragging = false,
   index,
+  canImprove = false,
 }: QuestionItemProps) => {
   const handleTypeChange = (type: QuestionType) => {
     const updatedQuestion: Question = {
@@ -123,6 +127,19 @@ export const QuestionItem = ({
             />
           </div>
           <div className="flex gap-2">
+            {canImprove && onImprove && (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => onImprove(question.id)}
+                title="Улучшить вопрос с помощью ИИ"
+                className="hover:bg-gradient-to-r hover:from-purple-100 hover:to-purple-200 transition-all border-purple-200"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+              </Button>
+            )}
             <Button
               variant="secondary"
               size="sm"

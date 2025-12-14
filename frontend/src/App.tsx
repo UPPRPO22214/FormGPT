@@ -7,6 +7,7 @@ import { HomePage } from './pages/HomePage';
 import { ProfilePage } from './pages/ProfilePage';
 import { CreateSurveyPage } from './pages/CreateSurveyPage';
 import { TakeSurveyPage } from './pages/TakeSurveyPage';
+import { SurveyAnalyticsPage } from './pages/SurveyAnalyticsPage';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { Header } from './components/Header';
 
@@ -63,6 +64,14 @@ function App() {
           element={
             <ProtectedRoute>
               <CreateSurveyPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/surveys/:id/analytics"
+          element={
+            <ProtectedRoute>
+              <SurveyAnalyticsPage />
             </ProtectedRoute>
           }
         />

@@ -9,6 +9,8 @@ interface SortableQuestionItemProps {
   onUpdate: (question: Question) => void;
   onDelete: (id: string) => void;
   onDuplicate: (id: string) => void;
+  onImprove?: (id: string, prompt?: string) => void;
+  canImprove?: boolean;
 }
 
 export const SortableQuestionItem = ({
@@ -17,6 +19,8 @@ export const SortableQuestionItem = ({
   onUpdate,
   onDelete,
   onDuplicate,
+  onImprove,
+  canImprove = false,
 }: SortableQuestionItemProps) => {
   const {
     attributes,
@@ -41,7 +45,9 @@ export const SortableQuestionItem = ({
           onUpdate={onUpdate}
           onDelete={onDelete}
           onDuplicate={onDuplicate}
+          onImprove={onImprove}
           isDragging={isDragging}
+          canImprove={canImprove}
         />
         <div
           {...attributes}

@@ -92,14 +92,21 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   loadUser: async () => {
     try {
-      const token = get().token;
-      if (!token) return;
+      // Всегда берем токен из localStorage, чтобы убедиться, что он актуален
+      const token = localStorage.getItem(STORAGE_KEYS.TOKEN);
+      if (!token) {
+        set({ token: null, isAuthenticated: false, user: null });
+        return;
+      }
+      
+      // Синхронизируем токен в store
+      set({ token, isAuthenticated: true });
       
       const user = await userApi.getProfile();
       set({ user });
     } catch (error: any) {
-      // Если ошибка 401, токен невалиден - очищаем состояние
-      if (error.response?.status === 401) {
+      // Если ошибка 401 или 403, токен невалиден или истек - очищаем состояние
+      if (error.response?.status === 401 || error.response?.status === 403) {
         get().logout();
       }
     }
