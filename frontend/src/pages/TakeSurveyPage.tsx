@@ -41,6 +41,49 @@ export const TakeSurveyPage = () => {
       setIsLoading(true);
       const data = await surveyApi.getById(id);
       setSurvey(data);
+      
+      // Заполняем ответы из userAnswer, если они есть
+      // Бэкенд возвращает текст опций в userAnswer, а не ID
+      const initialAnswers: Record<string, string | string[]> = {};
+      data.questions.forEach((question) => {
+        if (question.userAnswer !== undefined && question.userAnswer !== null && question.userAnswer !== '') {
+          if (question.type === 'multiple_choice') {
+            // Для multiple-choice userAnswer может быть массивом строк или строкой с разделителем ';'
+            let answerTexts: string[] = [];
+            if (Array.isArray(question.userAnswer)) {
+              answerTexts = question.userAnswer;
+            } else if (typeof question.userAnswer === 'string') {
+              // Бэкенд может вернуть строку с разделителем ';'
+              answerTexts = question.userAnswer.split(';').map(t => t.trim()).filter(t => t.length > 0);
+            }
+            
+            // Находим ID опций по тексту
+            const optionIds = answerTexts
+              .map((text: string) => {
+                const option = question.options?.find(opt => opt.text === text || opt.text.trim() === text.trim());
+                return option?.id;
+              })
+              .filter((id): id is string => id !== undefined);
+            
+            if (optionIds.length > 0) {
+              initialAnswers[question.id] = optionIds;
+            }
+          } else if (question.type === 'single_choice' && typeof question.userAnswer === 'string') {
+            // Для single-choice нужно найти ID опции по тексту
+            const userAnswerText = question.userAnswer;
+            const option = question.options?.find(
+              opt => opt.text === userAnswerText || opt.text.trim() === userAnswerText.trim()
+            );
+            if (option) {
+              initialAnswers[question.id] = option.id;
+            }
+          } else {
+            // Для text и scale просто используем значение
+            initialAnswers[question.id] = question.userAnswer as string;
+          }
+        }
+      });
+      setAnswers(initialAnswers);
     } catch (error) {
       console.error('Ошибка загрузки опроса:', error);
       alert('Не удалось загрузить опрос');
@@ -85,6 +128,14 @@ export const TakeSurveyPage = () => {
   const handleSubmit = async () => {
     if (!survey || !id) return;
 
+    // Проверяем авторизацию перед отправкой
+    const token = localStorage.getItem('auth_token');
+    if (!token || !user) {
+      alert('Вы не авторизованы. Пожалуйста, войдите в систему.');
+      navigate('/login');
+      return;
+    }
+
     if (!validateAnswers()) {
       // Прокручиваем к первому вопросу с ошибкой
       const firstErrorId = Object.keys(errors)[0];
@@ -97,19 +148,59 @@ export const TakeSurveyPage = () => {
 
     try {
       setIsSubmitting(true);
-      const answerArray: Answer[] = Object.entries(answers).map(([questionId, value]) => ({
-        questionId,
-        value: Array.isArray(value) ? value.join(',') : value,
-      }));
+      
+      // Фильтруем только заполненные ответы
+      const answerArray: Answer[] = Object.entries(answers)
+        .filter(([questionId, value]) => {
+          // Пропускаем пустые ответы
+          if (!value) return false;
+          if (Array.isArray(value) && value.length === 0) return false;
+          if (typeof value === 'string' && value.trim() === '') return false;
+          return true;
+        })
+        .map(([questionId, value]) => {
+        const question = survey.questions.find(q => q.id === questionId);
+        if (!question) {
+          console.error('Question not found for questionId:', questionId);
+          throw new Error(`Question not found: ${questionId}`);
+        }
+        
+        let answerValue: string;
+        
+        if (Array.isArray(value)) {
+          // Для multiple-choice преобразуем ID опций в текст опций
+          const optionTexts = value
+            .map((optionId) => {
+              const option = question.options?.find(opt => opt.id === optionId);
+              return option?.text;
+            })
+            .filter((text): text is string => text !== undefined);
+          answerValue = optionTexts.join(';'); // Бэкенд ожидает текст опций через ';'
+        } else if (question.type === 'single_choice') {
+          // Для single-choice преобразуем ID опции в текст опции
+          const option = question.options?.find(opt => opt.id === value);
+          if (!option) {
+            console.error('Option not found for value:', value, 'in question:', question.id);
+            throw new Error(`Option not found for question ${question.id}`);
+          }
+          answerValue = option.text;
+        } else {
+          // Для text и scale используем значение как есть
+          answerValue = value;
+        }
+        
+        return {
+          questionId,
+          value: answerValue,
+        };
+      });
 
-      if (!user?.id) {
-        alert('Ошибка: пользователь не авторизован');
-        return;
-      }
+      console.log('Submitting answers:', answerArray);
+      console.log('Survey ID:', id);
 
       const request: SurveyAnswerRequest = {
         surveyId: id,
-        userId: user.id,
+        userId: user?.id || '', // Не используется в теле запроса, но оставляем для совместимости типов
         answers: answerArray,
       };
 
@@ -120,9 +211,38 @@ export const TakeSurveyPage = () => {
       setTimeout(() => {
         navigate('/');
       }, 2000);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Ошибка отправки ответов:', error);
-      alert('Не удалось отправить ответы. Попробуйте еще раз.');
+      console.error('Error response:', error?.response);
+      console.error('Error data:', error?.response?.data);
+      
+      let errorMessage = 'Не удалось отправить ответы. Попробуйте еще раз.';
+      
+      // Специальная обработка ошибки 403 (Forbidden)
+      if (error?.response?.status === 403) {
+        errorMessage = 'Доступ запрещен. Возможно, вы не авторизованы или ваша сессия истекла. Пожалуйста, войдите в систему заново.';
+        // Interceptor уже перенаправит на страницу входа, но показываем сообщение
+        setTimeout(() => {
+          navigate('/login');
+        }, 2000);
+      } else if (error?.response?.status === 401) {
+        errorMessage = 'Вы не авторизованы. Пожалуйста, войдите в систему.';
+        // Interceptor уже перенаправит на страницу входа
+      } else if (error?.response?.data?.message) {
+        // Пытаемся извлечь детальное сообщение об ошибке
+        errorMessage = error.response.data.message;
+      } else if (error?.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      } else if (error?.message) {
+        errorMessage = error.message;
+      }
+      
+      // Если это ошибка валидации, показываем более детальное сообщение
+      if (error?.response?.status === 400 && error?.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      }
+      
+      alert(errorMessage);
     } finally {
       setIsSubmitting(false);
     }

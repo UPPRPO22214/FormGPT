@@ -1,5 +1,6 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
+import { useParams } from 'react-router-dom';
 import {
   DndContext,
   closestCenter,
@@ -25,6 +26,8 @@ import { Card } from '../components/ui/Card';
 import { Modal } from '../components/ui/Modal';
 import { SortableQuestionItem } from '../components/surveys/SortableQuestionItem';
 import { QuestionItem } from '../components/surveys/QuestionItem';
+import { surveyApi } from '../services/api';
+import { useNavigate } from 'react-router-dom';
 
 const generateId = () => String(Date.now() + Math.random());
 
@@ -37,14 +40,19 @@ const createDefaultQuestion = (order: number): Question => ({
 });
 
 export const CreateSurveyPage = () => {
+  const navigate = useNavigate();
+  const { id } = useParams<{ id: string }>();
+  const isEditMode = !!id;
   const [questions, setQuestions] = useState<Question[]>([
     createDefaultQuestion(0),
   ]);
   const [isSaved, setIsSaved] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isLoading, setIsLoading] = useState(isEditMode);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<Set<string>>(new Set());
   const [isClearModalOpen, setIsClearModalOpen] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const {
     register,
@@ -52,6 +60,12 @@ export const CreateSurveyPage = () => {
     formState: { errors },
     reset,
   } = useForm<CreateSurveyRequest>();
+
+  useEffect(() => {
+    if (isEditMode && id) {
+      loadSurvey(id);
+    }
+  }, [id, isEditMode]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -68,6 +82,37 @@ export const CreateSurveyPage = () => {
     () => questions.find((q) => q.id === activeId),
     [questions, activeId]
   );
+
+  const loadSurvey = async (surveyId: string) => {
+    try {
+      setIsLoading(true);
+      const survey = await surveyApi.getById(surveyId);
+      
+      // Заполняем форму данными опроса
+      reset({
+        title: survey.title,
+        description: survey.description || '',
+      });
+      
+      // Преобразуем вопросы из бэкенда в формат фронтенда
+      const loadedQuestions = survey.questions.map((q, index) => ({
+        ...q,
+        order: index,
+      }));
+      
+      setQuestions(loadedQuestions.length > 0 ? loadedQuestions : [createDefaultQuestion(0)]);
+    } catch (error: any) {
+      console.error('Ошибка загрузки опроса:', error);
+      setSaveError(
+        error.response?.data?.message || 
+        error.message || 
+        'Не удалось загрузить опрос для редактирования.'
+      );
+      navigate('/');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleDragStart = (event: DragStartEvent) => {
     setActiveId(event.active.id as string);
@@ -168,6 +213,7 @@ export const CreateSurveyPage = () => {
   const onSubmit = async (data: CreateSurveyRequest) => {
     setIsSaving(true);
     setIsSaved(false);
+    setSaveError(null);
 
     if (!validateQuestions()) {
       setIsSaving(false);
@@ -186,14 +232,27 @@ export const CreateSurveyPage = () => {
       })),
     };
 
-    // Симуляция задержки API
-    await new Promise((resolve) => setTimeout(resolve, 800));
-
-    console.log('Сохранение опроса:', surveyData);
-    setIsSaved(true);
-    setIsSaving(false);
-
-    setTimeout(() => setIsSaved(false), 4000);
+    try {
+      const savedSurvey = isEditMode && id
+        ? await surveyApi.update(id, surveyData)
+        : await surveyApi.create(surveyData);
+      console.log(`Опрос успешно ${isEditMode ? 'обновлен' : 'создан'}:`, savedSurvey);
+      setIsSaved(true);
+      
+      // Через 2 секунды перенаправляем на главную страницу
+      setTimeout(() => {
+        navigate('/');
+      }, 2000);
+    } catch (error: any) {
+      console.error('Ошибка сохранения опроса:', error);
+      setSaveError(
+        error.response?.data?.message || 
+        error.message || 
+        'Не удалось сохранить опрос. Попробуйте еще раз.'
+      );
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleClear = () => {
@@ -223,6 +282,17 @@ export const CreateSurveyPage = () => {
       </div>
       
       <div className="max-w-5xl mx-auto relative z-10">
+        {/* Индикатор загрузки */}
+        {isLoading && (
+          <div className="mb-6 p-5 bg-white rounded-xl shadow-lg flex items-center justify-center">
+            <svg className="animate-spin h-8 w-8 text-primary-600" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <span className="ml-3 text-gray-700">Загрузка опроса...</span>
+          </div>
+        )}
+
         {/* Заголовок */}
         <div className="mb-10">
           <div className="flex items-center gap-4 mb-4">
@@ -233,10 +303,12 @@ export const CreateSurveyPage = () => {
             </div>
             <div>
               <h1 className="text-4xl font-bold gradient-text mb-2">
-                Создание опроса
+                {isEditMode ? 'Редактирование опроса' : 'Создание опроса'}
               </h1>
               <p className="text-gray-600 text-lg">
-                Создайте новый опрос, добавьте вопросы и настройте их параметры
+                {isEditMode 
+                  ? 'Отредактируйте опрос, измените вопросы и их параметры'
+                  : 'Создайте новый опрос, добавьте вопросы и настройте их параметры'}
               </p>
             </div>
           </div>
@@ -254,6 +326,29 @@ export const CreateSurveyPage = () => {
               <p className="text-green-900 font-bold text-lg">Форма сохранена</p>
               <p className="text-green-700 text-sm">Опрос успешно сохранен</p>
             </div>
+          </div>
+        )}
+
+        {/* Уведомление об ошибке */}
+        {saveError && (
+          <div className="mb-6 p-5 bg-gradient-to-r from-red-50 to-red-100 border-l-4 border-red-500 rounded-xl shadow-lg flex items-center gap-4 animate-slide-up">
+            <div className="flex-shrink-0 w-10 h-10 bg-red-500 rounded-full flex items-center justify-center">
+              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <p className="text-red-900 font-bold text-lg">Ошибка сохранения</p>
+              <p className="text-red-700 text-sm">{saveError}</p>
+            </div>
+            <button
+              onClick={() => setSaveError(null)}
+              className="text-red-700 hover:text-red-900"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           </div>
         )}
 
@@ -431,7 +526,7 @@ export const CreateSurveyPage = () => {
                     <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                     </svg>
-                    Сохранить опрос
+                    {isEditMode ? 'Сохранить изменения' : 'Сохранить опрос'}
                   </>
                 )}
               </Button>
