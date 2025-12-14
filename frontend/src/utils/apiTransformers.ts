@@ -110,11 +110,16 @@ export const transformCreateSurveyRequestToBackend = (request: CreateSurveyReque
  * Преобразует ответ из формата фронтенда в формат бэкенда
  */
 export const transformAnswerToBackend = (answer: Answer) => {
-  const questionId = Number(answer.questionId);
-  if (isNaN(questionId)) {
-    console.error('Invalid questionId:', answer.questionId);
-    throw new Error(`Invalid questionId: ${answer.questionId}`);
+  // Пытаемся преобразовать questionId в число, если это возможно
+  // Если questionId является нечисловой строкой (например, UUID), оставляем как есть
+  const questionIdNum = Number(answer.questionId);
+  const questionId = !isNaN(questionIdNum) ? questionIdNum : answer.questionId;
+  
+  // Логируем предупреждение, если ID не является числом, но не выбрасываем ошибку
+  if (isNaN(questionIdNum)) {
+    console.warn('QuestionId is not numeric, sending as string:', answer.questionId);
   }
+  
   return {
     questionId: questionId,
     value: answer.value,
