@@ -363,6 +363,28 @@ components:
           default: false
           description: Включить ли GPT-анализ в ответ
 
+
+    GPTGenerateQuestionsRequest:
+      type: object
+      required:
+        - topic
+        - questions_count
+      properties:
+        topic:
+          type: string
+          description: Тема для генерации вопросов
+        target_audience:
+          type: string
+          nullable: true
+          description: Целевая аудитория
+          example: "students"
+        questions_count:
+          type: integer
+          description: Количество вопросов для генерации
+          minimum: 1
+          maximum: 20
+          example: 5
+
     ErrorResponse:
       type: object
       properties:
@@ -1141,3 +1163,56 @@ paths:
           description: Опрос не найден
         '500':
           description: Ошибка при генерации CSV файла
+
+
+  /gpt/surveys/{surveyId}/generate-questions:
+    post:
+      tags:
+        - GPT
+      summary: Генерация вопросов для существующего опроса
+      description: |
+        Генерирует дополнительные вопросы для указанного опроса.
+        Использует тему и целевую аудиторию опроса как контекст.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: surveyId
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - count
+              properties:
+                count:
+                  type: integer
+                  description: Количество вопросов для генерации
+                  minimum: 1
+                  maximum: 10
+                  example: 3
+                promt:
+                  type: string
+                  nullable: true
+                  description: Цель генерации вопросов
+                  example: "проверочные вопросы"
+      responses:
+        '200':
+          description: Сгенерированные вопросы
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/QuestionResponse"
+        '400':
+          description: Некорректные параметры
+        '401':
+          description: Требуется авторизация
+        '404':
+          description: Опрос не найден
