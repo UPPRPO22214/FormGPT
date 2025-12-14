@@ -164,4 +164,103 @@ public class GPTSurveyService {
 
         return dto;
     }
+
+    @Transactional
+    public List<QuestionResponseDTO> generateQuestionsForSurvey(
+            Long surveyId,
+            GPTGenerateQuestionsForSurveyRequestDTO request,
+            User user) {
+
+        log.info("Generating {} questions for survey: {}, user: {}, prompt: {}",
+                request.getCount(), surveyId, user.getEmail(), request.getPromt());
+
+        Form form = formRepository.findByIdAndCreator(surveyId, user)
+                .orElseThrow(() -> new RuntimeException("Survey not found or access denied"));
+
+        List<QuestionSchema> previousQuestions = form.getQuestions().stream()
+                .map(this::convertQuestionToSchema)
+                .collect(Collectors.toList());
+
+        MultipleQuestionGenerationSchema gptRequest = new MultipleQuestionGenerationSchema();
+        gptRequest.setTopic(form.getTitle());
+        gptRequest.setQuestions_count(request.getCount());
+
+        if (!previousQuestions.isEmpty()) {
+            gptRequest.setPrevious_questions(previousQuestions);
+        }
+
+        String promptText = request.getPromt();
+        if (promptText != null && !promptText.isEmpty()) {
+            gptRequest.setTopic(form.getTitle() + " - " + promptText);
+        }
+
+        List<QuestionSchema> generatedQuestions = gptClient.generateMultipleQuestions(gptRequest);
+
+        if (generatedQuestions == null || generatedQuestions.isEmpty()) {
+            throw new GPTServiceException("GPT returned no questions");
+        }
+
+        int maxOrderIndex = form.getQuestions().stream()
+                .mapToInt(Question::getOrderIndex)
+                .max()
+                .orElse(-1);
+
+        List<QuestionResponseDTO> result = new ArrayList<>();
+
+        for (QuestionSchema questionSchema : generatedQuestions) {
+            maxOrderIndex++;
+
+            Question question = Question.builder()
+                    .form(form)
+                    .text(questionSchema.getText())
+                    .type(typeConverter.convertFromGPTAnswerType(questionSchema.getAnswer_type()))
+                    .orderIndex(maxOrderIndex)
+                    .required(false)
+                    .build();
+
+            questionRepository.save(question);
+
+            if (questionSchema.getAnswer_options() != null && !questionSchema.getAnswer_options().isEmpty()) {
+                List<QuestionOption> options = new ArrayList<>();
+
+                for (int i = 0; i < questionSchema.getAnswer_options().size(); i++) {
+                    QuestionOption option = QuestionOption.builder()
+                            .question(question)
+                            .text(questionSchema.getAnswer_options().get(i))
+                            .orderIndex(i)
+                            .build();
+                    questionOptionRepository.save(option);
+                    options.add(option);
+                }
+
+                question.setOptions(options);
+            }
+
+            form.getQuestions().add(question);
+
+            result.add(convertToQuestionResponseDTO(question));
+        }
+
+        formRepository.save(form);
+
+        log.info("Successfully added {} generated questions to survey {}",
+                generatedQuestions.size(), surveyId);
+
+        return result;
+    }
+
+    private QuestionSchema convertQuestionToSchema(Question question) {
+        QuestionSchema schema = new QuestionSchema();
+        schema.setText(question.getText());
+        schema.setAnswer_type(typeConverter.convertToGPTAnswerType(question.getType()));
+
+        if (question.getOptions() != null && !question.getOptions().isEmpty()) {
+            List<String> options = question.getOptions().stream()
+                    .map(QuestionOption::getText)
+                    .collect(Collectors.toList());
+            schema.setAnswer_options(options);
+        }
+
+        return schema;
+    }
 }

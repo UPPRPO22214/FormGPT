@@ -102,14 +102,22 @@ public class SurveyService {
         Response response;
         if (existingResponse.isPresent()) {
             response = existingResponse.get();
+            if (response.getAnswers() == null) {
+                response.setAnswers(new ArrayList<>());
+            }
             answerRepository.deleteAll(response.getAnswers());
             response.getAnswers().clear();
         } else {
             response = Response.builder()
                     .form(form)
                     .user(user)
+                    .answers(new ArrayList<>())
                     .build();
             responseRepository.save(response);
+        }
+
+        if (response.getAnswers() == null) {
+            response.setAnswers(new ArrayList<>());
         }
 
         List<Question> allQuestions = questionRepository.findByFormIdOrderByOrderIndexAsc(surveyId);
@@ -151,16 +159,30 @@ public class SurveyService {
                     .valueText(answerDTOItem.getValue())
                     .build();
 
-            if (question.getType() == QuestionType.SINGLE_CHOICE) {
-                Optional<QuestionOption> option = question.getOptions().stream()
-                        .filter(opt -> opt.getText().equals(answerDTOItem.getValue()))
-                        .findFirst();
+            if (question.getType() == QuestionType.SINGLE_CHOICE || question.getType() == QuestionType.MULTIPLE_CHOICE) {
+                if (question.getType() == QuestionType.SINGLE_CHOICE) {
+                    Optional<QuestionOption> option = question.getOptions().stream()
+                            .filter(opt -> opt.getText().equals(answerDTOItem.getValue()))
+                            .findFirst();
 
-                if (option.isEmpty()) {
-                    throw new ValidationException("Вариант ответа '" + answerDTOItem.getValue() + "' не существует в вопросе '" + question.getText() + "'");
+                    if (option.isEmpty()) {
+                        throw new ValidationException("Вариант ответа '" + answerDTOItem.getValue() + "' не существует в вопросе '" + question.getText() + "'");
+                    }
+
+                    option.ifPresent(answer::setOption);
+                } else {
+                    String[] choices = answerDTOItem.getValue().split(";");
+                    for (String choice : choices) {
+                        String trimmedChoice = choice.trim();
+                        if (!trimmedChoice.isEmpty()) {
+                            boolean isValid = question.getOptions().stream()
+                                    .anyMatch(option -> option.getText().equals(trimmedChoice));
+                            if (!isValid) {
+                                throw new ValidationException("Для вопроса '" + question.getText() + "' выбран несуществующий вариант: '" + trimmedChoice + "'");
+                            }
+                        }
+                    }
                 }
-
-                option.ifPresent(answer::setOption);
             }
 
             answerRepository.save(answer);
@@ -532,5 +554,186 @@ public class SurveyService {
         stats.setDistribution(distribution);
 
         return stats;
+    }
+
+    public SurveyAnalyticsDTO getSurveyAnalytics(Long surveyId, User user, boolean includeGPT) {
+        Form form = formRepository.findByIdAndCreator(surveyId, user)
+                .orElseThrow(() -> new EntityNotFoundException("Survey not found or access denied"));
+
+        SurveyAnalyticsDTO analytics = new SurveyAnalyticsDTO();
+        analytics.setSurveyId(form.getId());
+        analytics.setTitle(form.getTitle());
+        analytics.setDescription(form.getDescription());
+
+        Integer totalResponses = responseRepository.countByFormId(surveyId);
+        analytics.setTotalRespondents(totalResponses != null ? totalResponses : 0);
+
+        // TODO: Здесь нужно реализовать логику для completed/incompleted count
+        analytics.setCompletedCount(analytics.getTotalRespondents());
+        analytics.setIncompletedCount(0);
+
+        List<Question> questions = questionRepository.findByFormIdOrderByOrderIndexAsc(surveyId);
+        List<QuestionAnalyticsDTO> questionAnalytics = questions.stream()
+                .map(question -> getQuestionAnalytics(question, surveyId))
+                .collect(Collectors.toList());
+
+        analytics.setQuestionsAnalytics(questionAnalytics);
+
+        if (includeGPT) {
+            analytics.setGptAnalysis(generateGPTAnalysis(analytics));
+        }
+
+        return analytics;
+    }
+
+    private QuestionAnalyticsDTO getQuestionAnalytics(Question question, Long surveyId) {
+        QuestionAnalyticsDTO analytics = new QuestionAnalyticsDTO();
+        analytics.setQuestionId(question.getId());
+        analytics.setQuestionTitle(question.getText());
+        analytics.setQuestionType(question.getType().getApiValue());
+
+        Long totalAnswers = answerRepository.countByQuestionId(question.getId());
+        analytics.setTotalAnswers(totalAnswers != null ? totalAnswers.intValue() : 0);
+
+        switch (question.getType()) {
+            case SINGLE_CHOICE:
+            case MULTIPLE_CHOICE:
+                analytics.setAnswerDistribution(getChoiceDistribution(question));
+                break;
+            case SCALE:
+                analytics.setAnswerDistribution(getScaleDistribution(question));
+                break;
+            case TEXT:
+                analytics.setAnswerDistribution(getTextAnalytics(question));
+                break;
+        }
+
+        return analytics;
+    }
+
+    private ChoiceDistributionDTO getChoiceDistribution(Question question) {
+        ChoiceDistributionDTO distribution = new ChoiceDistributionDTO();
+
+        List<String> options = question.getOptions().stream()
+                .map(QuestionOption::getText)
+                .collect(Collectors.toList());
+        distribution.setOptions(options);
+
+        List<Integer> counts = new ArrayList<>();
+        List<Double> percentages = new ArrayList<>();
+
+        Long totalAnswers = answerRepository.countByQuestionId(question.getId());
+        int total = totalAnswers != null ? totalAnswers.intValue() : 0;
+
+        if (question.getType() == QuestionType.MULTIPLE_CHOICE) {
+            for (String option : options) {
+                Long optionCount = answerRepository.countMultipleChoiceByQuestionIdAndOptionText(
+                        question.getId(), option);
+                int count = optionCount != null ? optionCount.intValue() : 0;
+                counts.add(count);
+
+                double percentage = total > 0 ? (count * 100.0) / total : 0.0;
+                percentages.add(Math.round(percentage * 10.0) / 10.0);
+            }
+        } else {
+            for (String option : options) {
+                Long optionCount = answerRepository.countByQuestionIdAndOptionText(question.getId(), option);
+                int count = optionCount != null ? optionCount.intValue() : 0;
+                counts.add(count);
+
+                double percentage = total > 0 ? (count * 100.0) / total : 0.0;
+                percentages.add(Math.round(percentage * 10.0) / 10.0);
+            }
+        }
+
+        distribution.setCounts(counts);
+        distribution.setPercentages(percentages);
+
+        return distribution;
+    }
+
+    private ScaleDistributionDTO getScaleDistribution(Question question) {
+        ScaleDistributionDTO distribution = new ScaleDistributionDTO();
+
+        List<Integer> values = answerRepository.findScaleValuesByQuestionId(question.getId()).stream()
+                .filter(Objects::nonNull)
+                .map(Integer::parseInt)
+                .filter(v -> v >= 1 && v <= 10)
+                .collect(Collectors.toList());
+
+        if (values.isEmpty()) {
+            distribution.setMin(0);
+            distribution.setMax(0);
+            distribution.setAverage(0.0);
+            distribution.setMedian(0.0);
+            distribution.setDistribution(Arrays.asList(0, 0, 0, 0, 0, 0, 0, 0, 0, 0));
+            return distribution;
+        }
+
+        int min = values.stream().min(Integer::compare).orElse(0);
+        int max = values.stream().max(Integer::compare).orElse(0);
+        double average = values.stream().mapToInt(Integer::intValue).average().orElse(0.0);
+
+        List<Integer> sortedValues = new ArrayList<>(values);
+        Collections.sort(sortedValues);
+        double median;
+        int size = sortedValues.size();
+        if (size % 2 == 0) {
+            median = (sortedValues.get(size / 2 - 1) + sortedValues.get(size / 2)) / 2.0;
+        } else {
+            median = sortedValues.get(size / 2);
+        }
+
+        List<Integer> scaleDistribution = new ArrayList<>(10);
+        for (int i = 1; i <= 10; i++) {
+            final int scaleValue = i;
+            long count = values.stream().filter(v -> v == scaleValue).count();
+            scaleDistribution.add((int) count);
+        }
+
+        distribution.setMin(min);
+        distribution.setMax(max);
+        distribution.setAverage(Math.round(average * 10.0) / 10.0);
+        distribution.setMedian(Math.round(median * 10.0) / 10.0);
+        distribution.setDistribution(scaleDistribution);
+
+        return distribution;
+    }
+
+    private TextAnalyticsDTO getTextAnalytics(Question question) {
+        TextAnalyticsDTO analytics = new TextAnalyticsDTO();
+
+        List<String> textAnswers = answerRepository.findTextAnswersByQuestionId(question.getId());
+
+        analytics.setTotalAnswers(textAnswers.size());
+
+        List<String> wordCloud = textAnswers.stream()
+                .flatMap(answer -> Arrays.stream(answer.toLowerCase().split("\\s+")))
+                .filter(word -> word.length() > 3)
+                .filter(word -> !word.matches(".*\\d+.*"))
+                .collect(Collectors.groupingBy(word -> word, Collectors.counting()))
+                .entrySet().stream()
+                .sorted((e1, e2) -> e2.getValue().compareTo(e1.getValue()))
+                .limit(10)
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toList());
+
+        analytics.setWordCloud(wordCloud);
+
+        List<String> sampleAnswers = textAnswers.stream()
+                .filter(answer -> answer.length() > 0)
+                .limit(5)
+                .collect(Collectors.toList());
+
+        analytics.setSampleAnswers(sampleAnswers);
+
+        return analytics;
+    }
+
+    private String generateGPTAnalysis(SurveyAnalyticsDTO analytics) {
+        // TODO: Здесь нужно интегрировать с GPT API для генерации анализа
+        return "GPT анализ будет реализован в следующей итерации.\n" +
+                "Всего респондентов: " + analytics.getTotalRespondents() + "\n" +
+                "Вопросов: " + analytics.getQuestionsAnalytics().size();
     }
 }

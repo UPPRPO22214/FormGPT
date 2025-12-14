@@ -10,6 +10,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @Slf4j
 @RestController
 @RequestMapping("/gpt")
@@ -57,5 +59,20 @@ public class GPTController {
 
         log.info("Question improved successfully, ID: {}", question.getId());
         return ResponseEntity.ok(question);
+    }
+
+    @PostMapping("/surveys/{surveyId}/generate-questions")
+    public ResponseEntity<List<QuestionResponseDTO>> generateQuestionsForSurvey(
+            @PathVariable Long surveyId,
+            @Valid @RequestBody GPTGenerateQuestionsForSurveyRequestDTO request) {
+        log.info("Generating {} questions for survey: {}, prompt: {}",
+                request.getCount(), surveyId, request.getPromt());
+
+        var currentUser = userService.getCurrentUser();
+        List<QuestionResponseDTO> questions = gptSurveyService.generateQuestionsForSurvey(
+                surveyId, request, currentUser);
+
+        log.info("Successfully generated {} questions for survey {}", questions.size(), surveyId);
+        return ResponseEntity.ok(questions);
     }
 }

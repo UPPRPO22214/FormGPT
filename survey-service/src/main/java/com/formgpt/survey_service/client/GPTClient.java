@@ -5,11 +5,14 @@ import com.formgpt.survey_service.exception.GPTServiceException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.*;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.RestTemplate;
+
+import java.util.List;
 
 @Slf4j
 @Component
@@ -101,6 +104,41 @@ public class GPTClient {
         } catch (Exception e) {
             log.error("Unexpected error when improving question: {}", e.getMessage(), e);
             throw new GPTServiceException("Unexpected error improving question: " + e.getMessage(), e);
+        }
+    }
+
+
+    public List<QuestionSchema> generateMultipleQuestions(MultipleQuestionGenerationSchema request) {
+        String url = gptServiceUrl + "/questions/generate_multiple";
+        log.info("Calling GPT service to generate {} questions on topic: {}",
+                request.getQuestions_count(), request.getTopic());
+
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+
+            HttpEntity<MultipleQuestionGenerationSchema> entity = new HttpEntity<>(request, headers);
+
+            ResponseEntity<List<QuestionSchema>> response = restTemplate.exchange(
+                    url,
+                    HttpMethod.POST,
+                    entity,
+                    new ParameterizedTypeReference<List<QuestionSchema>>() {}
+            );
+
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                log.info("Successfully generated {} questions", response.getBody().size());
+                return response.getBody();
+            } else {
+                log.error("Failed to generate multiple questions. Status: {}", response.getStatusCode());
+                throw new GPTServiceException("Failed to generate multiple questions");
+            }
+        } catch (HttpClientErrorException e) {
+            log.error("Client error when generating multiple questions: {}", e.getMessage());
+            throw new GPTServiceException("GPT service client error: " + e.getMessage(), e);
+        } catch (Exception e) {
+            log.error("Unexpected error when generating multiple questions: {}", e.getMessage(), e);
+            throw new GPTServiceException("Unexpected error generating questions: " + e.getMessage(), e);
         }
     }
 }
