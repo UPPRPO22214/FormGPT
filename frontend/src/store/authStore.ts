@@ -35,7 +35,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ token: response.token, isAuthenticated: true });
       await get().loadUser();
     } catch (error: any) {
-      const errorMessage = error.response?.data?.message || 'Ошибка входа. Проверьте данные.';
+      // Извлекаем сообщение об ошибке из разных возможных форматов ответа Spring Security
+      let errorMessage = 'Ошибка входа. Проверьте данные.';
+      if (error.response?.data) {
+        // Проверяем разные возможные форматы ответа
+        if (error.response.data.message) {
+          errorMessage = error.response.data.message;
+        } else if (error.response.data.error) {
+          errorMessage = error.response.data.error;
+        } else if (typeof error.response.data === 'string') {
+          errorMessage = error.response.data;
+        } else if (error.response.data.detail) {
+          errorMessage = error.response.data.detail;
+        }
+      }
       set({ error: errorMessage });
       throw error;
     } finally {
@@ -51,7 +64,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ token: response.token, isAuthenticated: true });
       await get().loadUser();
     } catch (error: any) {
-      const errorMessage = error.response?.data?.message || 'Ошибка регистрации. Email может быть уже занят.';
+      // Извлекаем сообщение об ошибке из разных возможных форматов ответа Spring Security
+      let errorMessage = 'Ошибка регистрации. Email может быть уже занят.';
+      if (error.response?.data) {
+        // Проверяем разные возможные форматы ответа
+        if (error.response.data.message) {
+          errorMessage = error.response.data.message;
+        } else if (error.response.data.error) {
+          errorMessage = error.response.data.error;
+        } else if (typeof error.response.data === 'string') {
+          errorMessage = error.response.data;
+        } else if (error.response.data.detail) {
+          errorMessage = error.response.data.detail;
+        }
+      }
       set({ error: errorMessage });
       throw error;
     } finally {
