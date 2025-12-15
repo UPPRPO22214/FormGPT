@@ -255,6 +255,40 @@ export const surveyApi = {
       throw error;
     }
   },
+
+  createWithGPT: async (description: string, questionCount: number, targetAudience?: string): Promise<Survey> => {
+    const requestBody: { description: string; questionCount: number; targetAudience?: string } = {
+      description,
+      questionCount,
+    };
+    if (targetAudience) {
+      requestBody.targetAudience = targetAudience;
+    }
+    
+    const response = await api.post<any>('/gpt/surveys/create', requestBody);
+    return transformSurveyFromBackend(response.data);
+  },
+
+  downloadCsv: async (surveyId: string, format: 'by-respondent' | 'by-question' = 'by-respondent', includeMetadata: boolean = true): Promise<void> => {
+    const normalizedId = normalizeSurveyId(surveyId);
+    const response = await api.get(`/surveys/${normalizedId}/export/csv`, {
+      params: {
+        format,
+        includeMetadata,
+      },
+      responseType: 'blob',
+    });
+    
+    // Создаем ссылку для скачивания файла
+    const url = window.URL.createObjectURL(new Blob([response.data], { type: 'text/csv;charset=utf-8;' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `survey-${normalizedId}-results-${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  },
 };
 
 export default api;

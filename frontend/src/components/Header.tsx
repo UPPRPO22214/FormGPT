@@ -1,16 +1,20 @@
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 
 export const Header = () => {
   const { user, isAuthenticated, logout } = useAuthStore();
   const navigate = useNavigate();
+  const location = useLocation();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [menuPosition, setMenuPosition] = useState({ top: 0, right: 0 });
+  
+  // Проверяем, находимся ли мы на странице прохождения опроса
+  const isTakingSurvey = location.pathname.match(/^\/surveys\/[^/]+$/) !== null && !location.pathname.includes('/edit') && !location.pathname.includes('/analytics');
 
   const handleLogout = () => {
     logout();
@@ -59,10 +63,10 @@ export const Header = () => {
   }
 
   return (
-    <header className="bg-white/50 backdrop-blur-xl border-b border-white/20 shadow-sm sticky top-0 z-50">
+    <header className={`bg-white/50 backdrop-blur-xl border-b border-white/20 shadow-sm sticky top-0 z-50 ${isTakingSurvey ? 'pointer-events-none' : ''}`}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
-          <Link to="/" className="flex items-center gap-3 group">
+          <Link to="/" className={`flex items-center gap-3 group ${isTakingSurvey ? 'pointer-events-none cursor-default' : ''}`}>
             <div className="w-10 h-10 bg-primary-600 rounded-xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow">
               <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -74,7 +78,7 @@ export const Header = () => {
           <nav className="flex items-center gap-4">
             <Link
               to="/surveys/create"
-              className="text-gray-700 hover:text-primary-600 font-medium transition-colors px-3 py-2 rounded-lg hover:bg-white/40 backdrop-blur-sm"
+              className={`text-gray-700 hover:text-primary-600 font-medium transition-colors px-3 py-2 rounded-lg hover:bg-white/40 backdrop-blur-sm ${isTakingSurvey ? 'pointer-events-none cursor-default' : ''}`}
             >
               Создать опрос
             </Link>
@@ -89,7 +93,8 @@ export const Header = () => {
                   <button
                     ref={buttonRef}
                     onClick={() => setIsMenuOpen(!isMenuOpen)}
-                    className="w-10 h-10 rounded-full bg-primary-600 flex items-center justify-center text-white font-semibold shadow-md hover:shadow-lg transition-shadow cursor-pointer"
+                    className={`w-10 h-10 rounded-full bg-primary-600 flex items-center justify-center text-white font-semibold shadow-md hover:shadow-lg transition-shadow ${isTakingSurvey ? 'pointer-events-none cursor-default opacity-50' : 'cursor-pointer'}`}
+                    disabled={isTakingSurvey}
                   >
                     {(user.name || user.email)[0].toUpperCase()}
                   </button>

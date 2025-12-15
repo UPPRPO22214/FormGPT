@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
-import { useParams } from 'react-router-dom';
+import { useParams, useLocation } from 'react-router-dom';
 import {
   DndContext,
   closestCenter,
@@ -41,8 +41,10 @@ const createDefaultQuestion = (order: number): Question => ({
 
 export const CreateSurveyPage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { id } = useParams<{ id: string }>();
   const isEditMode = !!id;
+  const isGPTMode = location.pathname.includes('/create/gpt');
   const [questions, setQuestions] = useState<Question[]>([
     createDefaultQuestion(0),
   ]);
@@ -61,6 +63,11 @@ export const CreateSurveyPage = () => {
   const [questionCount, setQuestionCount] = useState(3);
   const [isGenerating, setIsGenerating] = useState(false);
   const [savedSurveyId, setSavedSurveyId] = useState<string | null>(null);
+  const [createWithGPTModal, setCreateWithGPTModal] = useState(false);
+  const [gptDescription, setGptDescription] = useState('');
+  const [gptTargetAudience, setGptTargetAudience] = useState('');
+  const [gptQuestionCount, setGptQuestionCount] = useState(5);
+  const [isCreatingWithGPT, setIsCreatingWithGPT] = useState(false);
 
   const {
     register,
@@ -72,8 +79,11 @@ export const CreateSurveyPage = () => {
   useEffect(() => {
     if (isEditMode && id) {
       loadSurvey(id);
+    } else if (isGPTMode) {
+      // Если это режим создания с GPT, показываем модальное окно для ввода параметров
+      setCreateWithGPTModal(true);
     }
-  }, [id, isEditMode]);
+  }, [id, isEditMode, isGPTMode]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -270,10 +280,7 @@ export const CreateSurveyPage = () => {
         }
       }
       
-      // Через 2 секунды перенаправляем на главную страницу
-      setTimeout(() => {
-        navigate('/');
-      }, 2000);
+      // Не перенаправляем на главную страницу, пользователь остается на текущей
     } catch (error: any) {
       console.error('Ошибка сохранения опроса:', error);
       setSaveError(
@@ -335,6 +342,51 @@ export const CreateSurveyPage = () => {
       alert(error.response?.data?.message || 'Не удалось улучшить вопрос. Попробуйте еще раз.');
     } finally {
       setIsImproving(false);
+    }
+  };
+
+  const handleCreateWithGPT = async () => {
+    if (!gptDescription.trim()) {
+      alert('Пожалуйста, введите описание опроса');
+      return;
+    }
+
+    setIsCreatingWithGPT(true);
+    try {
+      const createdSurvey = await surveyApi.createWithGPT(
+        gptDescription,
+        gptQuestionCount,
+        gptTargetAudience || undefined
+      );
+      
+      // Загружаем созданный опрос для редактирования
+      if (createdSurvey.id) {
+        await loadSurvey(createdSurvey.id);
+        setCreateWithGPTModal(false);
+        setGptDescription('');
+        setGptTargetAudience('');
+        setGptQuestionCount(5);
+        // Переходим в режим редактирования
+        navigate(`/surveys/${createdSurvey.id}/edit`, { replace: true });
+      }
+    } catch (error: any) {
+      console.error('Ошибка создания опроса с GPT:', error);
+      
+      let errorMessage = 'Не удалось создать опрос. Попробуйте еще раз.';
+      
+      if (error.response?.status === 403) {
+        errorMessage = 'Доступ запрещен. Возможно, токен истек или у вас нет прав доступа. Пожалуйста, войдите заново.';
+      } else if (error.response?.status === 401) {
+        errorMessage = 'Сессия истекла. Пожалуйста, войдите заново.';
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      alert(errorMessage);
+    } finally {
+      setIsCreatingWithGPT(false);
     }
   };
 
@@ -711,6 +763,73 @@ export const CreateSurveyPage = () => {
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
               </svg>
               <span className="text-sm">ИИ обрабатывает запрос...</span>
+            </div>
+          )}
+        </div>
+      </Modal>
+
+      {/* Модальное окно создания опроса с GPT */}
+      <Modal
+        isOpen={createWithGPTModal}
+        onClose={() => {
+          setCreateWithGPTModal(false);
+          if (isGPTMode) {
+            navigate('/surveys/create');
+          }
+        }}
+        title="Создать опрос с помощью ИИ"
+        onConfirm={handleCreateWithGPT}
+        onCancel={() => {
+          setCreateWithGPTModal(false);
+          if (isGPTMode) {
+            navigate('/surveys/create');
+          }
+        }}
+        confirmText={isCreatingWithGPT ? "Создание..." : "Создать"}
+        cancelText="Отмена"
+        confirmDisabled={isCreatingWithGPT || !gptDescription.trim()}
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600">
+            ИИ создаст полный опрос с указанным количеством вопросов на указанную тему.
+          </p>
+          <Textarea
+            label="Описание темы опроса *"
+            value={gptDescription}
+            onChange={(e) => setGptDescription(e.target.value)}
+            rows={4}
+            placeholder="Например: Опрос об удовлетворенности сотрудников условиями работы в офисе"
+            required
+          />
+          <Input
+            label="Целевая аудитория (необязательно)"
+            value={gptTargetAudience}
+            onChange={(e) => setGptTargetAudience(e.target.value)}
+            placeholder="Например: офисные сотрудники, студенты..."
+          />
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Количество вопросов
+            </label>
+            <Input
+              type="number"
+              value={gptQuestionCount}
+              onChange={(e) => {
+                const count = parseInt(e.target.value) || 1;
+                setGptQuestionCount(Math.max(1, Math.min(20, count)));
+              }}
+              min={1}
+              max={20}
+              className="w-full"
+            />
+          </div>
+          {isCreatingWithGPT && (
+            <div className="flex items-center gap-3 text-primary-600">
+              <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              <span className="text-sm">ИИ создает опрос...</span>
             </div>
           )}
         </div>
