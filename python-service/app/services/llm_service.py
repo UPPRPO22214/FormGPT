@@ -5,7 +5,7 @@ from config import settings
 from gigachat import GigaChat
 from gigachat.models import Chat
 
-from schemas.forms import FormSchema, FormGenerationSchema, FormImprovementSchema
+from schemas.forms import FormSchema, FormGenerationSchema, FormImprovementSchema, SurveyAnalysisRequestSchema
 from schemas.questions import QuestionSchema, AnswerType, QuestionImprovementSchema, QuestionGenerationSchema, \
     MultipleQuestionGenerationSchema
 from schemas.utils import MessageSchema
@@ -42,7 +42,7 @@ class LLMService(LLMServiceInterface):
                                   "Верни ТОЛЬКО JSON без каких-либо пояснений."
                                   f"Типы вопросов {[answer_type.value for answer_type in AnswerType]}"
                           ))
-        return FormSchema(**self.generate_answer_by_messages(messages))
+        return FormSchema(**self._generate_json_answer_by_messages(messages))
 
     def generate_question(self, topic: QuestionGenerationSchema) -> QuestionSchema:
         messages = [
@@ -62,7 +62,7 @@ class LLMService(LLMServiceInterface):
                                   "Верни ТОЛЬКО JSON без каких-либо пояснений."
                                   f"Типы вопросов {[answer_type.value for answer_type in AnswerType]}"
                           ))
-        return QuestionSchema(**self.generate_answer_by_messages(messages))
+        return QuestionSchema(**self._generate_json_answer_by_messages(messages))
 
     def improve_question(self, question_improvement_schema: QuestionImprovementSchema) -> QuestionSchema:
         messages = [
@@ -93,7 +93,7 @@ class LLMService(LLMServiceInterface):
                                   "Верни ТОЛЬКО JSON без каких-либо пояснений."
                                   f"Типы вопросов {[answer_type.value for answer_type in AnswerType]}"
                           ))
-        return QuestionSchema(**self.generate_answer_by_messages(messages))
+        return QuestionSchema(**self._generate_json_answer_by_messages(messages))
 
     def improve_form(self, form_schema: FormImprovementSchema) -> FormSchema:
         messages = [
@@ -120,7 +120,7 @@ class LLMService(LLMServiceInterface):
                                   "Верни ТОЛЬКО JSON без каких-либо пояснений."
                                   f"Типы вопросов {[answer_type.value for answer_type in AnswerType]}"
                           ))
-        return FormSchema(**self.generate_answer_by_messages(messages))
+        return FormSchema(**self._generate_json_answer_by_messages(messages))
 
     def generate_multiple_questions(self, multiple_question_generation: MultipleQuestionGenerationSchema) -> list[
         QuestionSchema]:
@@ -154,9 +154,24 @@ class LLMService(LLMServiceInterface):
                                   "Верни ТОЛЬКО JSON без каких-либо пояснений."
                                   f"Типы вопросов {[answer_type.value for answer_type in AnswerType]}"
                           ))
-        return [QuestionSchema(**question) for question in self.generate_answer_by_messages(messages)]
+        return [QuestionSchema(**question) for question in self._generate_json_answer_by_messages(messages)]
 
-    def generate_answer_by_messages(self, messages: list[MessageSchema]):
+    def analyze_results(self, topic: SurveyAnalysisRequestSchema) -> str:
+        messages = [
+            MessageSchema(role="system", content=self._system_prompt)
+        ]
+
+        messages.append(MessageSchema(role="user",
+                                      content=f"Вот тебе информация об опросе:{topic.survey.model_dump_json()}"))
+
+        messages.append(MessageSchema(role="user",
+                                      content=f"Вот имнформация о прохождении людьми каждого вопроса:{[question.model_dump_json() for question in topic.questions]}"))
+        messages.append(MessageSchema(role="user",
+                                      content=f"Проанализируй результаты опросы и напиши подробную аналитику по данному опросу"))
+
+        return self._generate_answer_by_messages(messages)
+
+    def _generate_answer_by_messages(self, messages: list[MessageSchema]):
         chat = Chat(
             messages=messages,
             model=settings.GIGACHAT_MODEL,
@@ -169,4 +184,12 @@ class LLMService(LLMServiceInterface):
         content = content.strip()
         logger.info(content)
         print(content)
-        return json.loads(content)
+        return content
+
+    def _generate_json_answer_by_messages(self, messages: list[MessageSchema]):
+        for i in range(3):
+            try:
+                return json.loads(self._generate_answer_by_messages(messages))
+            except ValueError:
+                logger.info("Couldn't decode, next try")
+                continue
