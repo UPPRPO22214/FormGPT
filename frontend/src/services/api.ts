@@ -14,11 +14,14 @@ import {
   UpdateSurveyRequest,
   GPTAnalysis,
   SurveyAnswerRequest,
+  Question,
+  SurveyAnalytics,
 } from '../types/survey';
 import {
   transformSurveyFromBackend,
   transformCreateSurveyRequestToBackend,
   transformSurveyAnswerRequestToBackend,
+  transformQuestionFromBackend,
 } from '../utils/apiTransformers';
 
 const api = axios.create({
@@ -34,6 +37,14 @@ api.interceptors.request.use(
     const token = localStorage.getItem(STORAGE_KEYS.TOKEN);
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
+      // Логируем для отладки (можно убрать в продакшене)
+      if (config.url?.includes('generate-questions')) {
+        console.log('Отправка запроса на генерацию вопросов с токеном:', {
+          url: config.url,
+          hasToken: !!token,
+          tokenLength: token.length,
+        });
+      }
     } else {
       console.warn('Токен не найден в localStorage для запроса:', config.url);
     }
@@ -52,16 +63,36 @@ api.interceptors.response.use(
       const url = error.config?.url || '';
       const isAuthEndpoint = url.includes('/auth/login') || url.includes('/auth/register');
       
+      // Детальное логирование для отладки
+      console.error('Ошибка аутентификации:', {
+        status: error.response?.status,
+        url: url,
+        isAuthEndpoint,
+        responseData: error.response?.data,
+        hasToken: !!localStorage.getItem(STORAGE_KEYS.TOKEN),
+      });
+      
       // Не делаем редирект для ошибок логина/регистрации - это ошибки самих операций, а не проблемы с токеном
       // Редирект нужен только для ошибок авторизации при запросах к защищенным ресурсам
       if (!isAuthEndpoint) {
-        // Удаляем токен и перенаправляем на страницу входа только для защищенных ресурсов
-        localStorage.removeItem(STORAGE_KEYS.TOKEN);
-        // Для 403 показываем более понятное сообщение
-        if (error.response?.status === 403) {
-          console.error('Доступ запрещен. Возможно, токен истек или у вас нет прав доступа.');
+        // Для 403 не всегда нужно сразу перенаправлять - может быть проблема с правами доступа
+        // Удаляем токен только если это точно проблема с токеном (401 или 403 с сообщением об истекшем токене)
+        if (error.response?.status === 401) {
+          localStorage.removeItem(STORAGE_KEYS.TOKEN);
+          window.location.href = '/login';
+        } else if (error.response?.status === 403) {
+          // Для 403 проверяем, не является ли это ошибкой доступа к ресурсу (например, опрос принадлежит другому пользователю)
+          // В этом случае не перенаправляем, а позволяем компоненту обработать ошибку
+          const errorMessage = error.response?.data;
+          const isTokenError = typeof errorMessage === 'string' && 
+            (errorMessage.includes('token') || errorMessage.includes('authentication') || errorMessage.includes('expired'));
+          
+          if (isTokenError) {
+            localStorage.removeItem(STORAGE_KEYS.TOKEN);
+            window.location.href = '/login';
+          }
+          // Иначе позволяем компоненту обработать ошибку (например, показать сообщение пользователю)
         }
-        window.location.href = '/login';
       }
     }
     return Promise.reject(error);
@@ -177,12 +208,52 @@ export const surveyApi = {
     }
   },
 
-  getAnalytics: async (surveyId: string, includeGPT: boolean = false): Promise<any> => {
+  getAnalytics: async (surveyId: string, includeGPT: boolean = false): Promise<SurveyAnalytics> => {
     const normalizedId = normalizeSurveyId(surveyId);
-    const response = await api.get<any>(`/surveys/${normalizedId}/analytics`, {
+    const response = await api.get<SurveyAnalytics>(`/surveys/${normalizedId}/analytics`, {
       params: { includeGPT }
     });
     return response.data;
+  },
+
+  improveQuestion: async (questionId: string, prompt?: string): Promise<Question> => {
+    const normalizedId = normalizeSurveyId(questionId);
+    // Согласно OpenAPI: requestBody необязательный, можно отправить пустой объект или объект с prompt
+    const requestBody = prompt ? { prompt } : {};
+    const response = await api.put<any>(`/gpt/questions/${normalizedId}/edit`, requestBody);
+    // Преобразуем ответ бэкенда в формат фронтенда
+    return transformQuestionFromBackend(response.data);
+  },
+
+  generateQuestions: async (surveyId: string, count: number, prompt?: string): Promise<Question[]> => {
+    const normalizedId = normalizeSurveyId(surveyId);
+    // Согласно OpenAPI: count обязательный (1-10), promt необязательный (обратите внимание на опечатку "promt" в спецификации)
+    const requestBody: { count: number; promt?: string } = { count };
+    if (prompt) {
+      requestBody.promt = prompt;
+    }
+    
+    console.log('Генерация вопросов:', {
+      surveyId,
+      normalizedId,
+      count,
+      hasPrompt: !!prompt,
+      url: `/gpt/surveys/${normalizedId}/generate-questions`,
+    });
+    
+    try {
+      const response = await api.post<any[]>(`/gpt/surveys/${normalizedId}/generate-questions`, requestBody);
+      return response.data.map(transformQuestionFromBackend);
+    } catch (error: any) {
+      console.error('Ошибка при генерации вопросов:', {
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        surveyId,
+        normalizedId,
+      });
+      throw error;
+    }
   },
 };
 

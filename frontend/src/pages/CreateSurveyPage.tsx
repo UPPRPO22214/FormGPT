@@ -53,6 +53,14 @@ export const CreateSurveyPage = () => {
   const [validationErrors, setValidationErrors] = useState<Set<string>>(new Set());
   const [isClearModalOpen, setIsClearModalOpen] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [improveQuestionModal, setImproveQuestionModal] = useState<{ isOpen: boolean; questionId: string | null }>({ isOpen: false, questionId: null });
+  const [improvePrompt, setImprovePrompt] = useState('');
+  const [isImproving, setIsImproving] = useState(false);
+  const [generateQuestionsModal, setGenerateQuestionsModal] = useState(false);
+  const [generatePrompt, setGeneratePrompt] = useState('');
+  const [questionCount, setQuestionCount] = useState(3);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [savedSurveyId, setSavedSurveyId] = useState<string | null>(null);
 
   const {
     register,
@@ -101,6 +109,11 @@ export const CreateSurveyPage = () => {
       }));
       
       setQuestions(loadedQuestions.length > 0 ? loadedQuestions : [createDefaultQuestion(0)]);
+      
+      // Сохраняем ID опроса для использования в ИИ функциях
+      if (survey.id) {
+        setSavedSurveyId(survey.id);
+      }
     } catch (error: any) {
       console.error('Ошибка загрузки опроса:', error);
       setSaveError(
@@ -239,6 +252,24 @@ export const CreateSurveyPage = () => {
       console.log(`Опрос успешно ${isEditMode ? 'обновлен' : 'создан'}:`, savedSurvey);
       setIsSaved(true);
       
+      // Сохраняем ID опроса для использования в ИИ функциях
+      if (savedSurvey.id) {
+        setSavedSurveyId(savedSurvey.id);
+        
+        // Обновляем ID вопросов на основе ответа от сервера
+        // Это необходимо для работы функции улучшения вопросов
+        if (savedSurvey.questions && savedSurvey.questions.length === questions.length) {
+          const updatedQuestions = questions.map((q, index) => {
+            const savedQ = savedSurvey.questions[index];
+            if (savedQ && savedQ.id) {
+              return { ...q, id: savedQ.id };
+            }
+            return q;
+          });
+          setQuestions(updatedQuestions);
+        }
+      }
+      
       // Через 2 секунды перенаправляем на главную страницу
       setTimeout(() => {
         navigate('/');
@@ -271,6 +302,89 @@ export const CreateSurveyPage = () => {
     () => questions.filter((q) => q.text.trim()).length,
     [questions]
   );
+
+  const handleImproveQuestion = (questionId: string) => {
+    setImproveQuestionModal({ isOpen: true, questionId });
+    setImprovePrompt('');
+  };
+
+  const handleConfirmImprove = async () => {
+    if (!improveQuestionModal.questionId || !savedSurveyId) {
+      alert('Сначала сохраните опрос, чтобы использовать функцию улучшения вопросов');
+      setImproveQuestionModal({ isOpen: false, questionId: null });
+      return;
+    }
+
+    setIsImproving(true);
+    try {
+      const improvedQuestion = await surveyApi.improveQuestion(
+        improveQuestionModal.questionId,
+        improvePrompt || undefined
+      );
+      
+      // Обновляем вопрос в списке
+      setQuestions((prev) =>
+        prev.map((q) => (q.id === improveQuestionModal.questionId ? { ...improvedQuestion, order: q.order } : q))
+      );
+      
+      setIsSaved(false);
+      setImproveQuestionModal({ isOpen: false, questionId: null });
+      setImprovePrompt('');
+    } catch (error: any) {
+      console.error('Ошибка улучшения вопроса:', error);
+      alert(error.response?.data?.message || 'Не удалось улучшить вопрос. Попробуйте еще раз.');
+    } finally {
+      setIsImproving(false);
+    }
+  };
+
+  const handleGenerateQuestions = async () => {
+    if (!savedSurveyId) {
+      alert('Сначала сохраните опрос, чтобы использовать функцию генерации вопросов');
+      setGenerateQuestionsModal(false);
+      return;
+    }
+
+    setIsGenerating(true);
+    try {
+      const generatedQuestions = await surveyApi.generateQuestions(
+        savedSurveyId,
+        questionCount,
+        generatePrompt || undefined
+      );
+      
+      // Добавляем сгенерированные вопросы в список
+      const maxOrder = Math.max(...questions.map(q => q.order), -1);
+      const newQuestions = generatedQuestions.map((q, index) => ({
+        ...q,
+        order: maxOrder + 1 + index,
+      }));
+      
+      setQuestions([...questions, ...newQuestions]);
+      setIsSaved(false);
+      setGenerateQuestionsModal(false);
+      setGeneratePrompt('');
+      setQuestionCount(3);
+    } catch (error: any) {
+      console.error('Ошибка генерации вопросов:', error);
+      
+      let errorMessage = 'Не удалось сгенерировать вопросы. Попробуйте еще раз.';
+      
+      if (error.response?.status === 403) {
+        errorMessage = 'Доступ запрещен. Возможно, токен истек или у вас нет прав доступа к этому опросу. Пожалуйста, войдите заново.';
+      } else if (error.response?.status === 401) {
+        errorMessage = 'Сессия истекла. Пожалуйста, войдите заново.';
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      alert(errorMessage);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-primary-50 py-8 pb-32 px-4 sm:px-6 lg:px-8 relative">
@@ -411,17 +525,32 @@ export const CreateSurveyPage = () => {
                   </div>
                 </div>
               </div>
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={handleAddQuestion}
-                className="shadow-md"
-              >
-                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-                Добавить вопрос
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => setGenerateQuestionsModal(true)}
+                  className="shadow-md bg-gradient-to-r from-purple-500 to-purple-600 text-white hover:from-purple-600 hover:to-purple-700"
+                  disabled={!savedSurveyId}
+                  title={!savedSurveyId ? 'Сначала сохраните опрос' : 'Сгенерировать вопросы с помощью ИИ'}
+                >
+                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                  Сгенерировать вопросы
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={handleAddQuestion}
+                  className="shadow-md"
+                >
+                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  Добавить вопрос
+                </Button>
+              </div>
             </div>
 
             {questions.length === 0 ? (
@@ -463,6 +592,8 @@ export const CreateSurveyPage = () => {
                           onUpdate={handleUpdateQuestion}
                           onDelete={handleDeleteQuestion}
                           onDuplicate={handleDuplicateQuestion}
+                          onImprove={handleImproveQuestion}
+                          canImprove={!!savedSurveyId}
                         />
                         {validationErrors.has(question.id) && (
                           <p className="mt-2 ml-4 text-sm text-red-600 flex items-center gap-1">
@@ -549,6 +680,90 @@ export const CreateSurveyPage = () => {
         <p className="text-base leading-relaxed">
           Вы уверены, что хотите очистить форму? Все данные будут потеряны и восстановить их будет невозможно.
         </p>
+      </Modal>
+
+      {/* Модальное окно улучшения вопроса */}
+      <Modal
+        isOpen={improveQuestionModal.isOpen}
+        onClose={() => setImproveQuestionModal({ isOpen: false, questionId: null })}
+        title="Улучшить вопрос с помощью ИИ"
+        onConfirm={handleConfirmImprove}
+        onCancel={() => setImproveQuestionModal({ isOpen: false, questionId: null })}
+        confirmText={isImproving ? "Улучшение..." : "Улучшить"}
+        cancelText="Отмена"
+        confirmDisabled={isImproving}
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600">
+            ИИ поможет улучшить формулировку вопроса, варианты ответов или структуру.
+          </p>
+          <Textarea
+            label="Дополнительные инструкции (необязательно)"
+            value={improvePrompt}
+            onChange={(e) => setImprovePrompt(e.target.value)}
+            rows={4}
+            placeholder="Например: Сделай вопрос более понятным для новичков, добавь больше вариантов ответа..."
+          />
+          {isImproving && (
+            <div className="flex items-center gap-3 text-primary-600">
+              <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              <span className="text-sm">ИИ обрабатывает запрос...</span>
+            </div>
+          )}
+        </div>
+      </Modal>
+
+      {/* Модальное окно генерации вопросов */}
+      <Modal
+        isOpen={generateQuestionsModal}
+        onClose={() => setGenerateQuestionsModal(false)}
+        title="Сгенерировать вопросы с помощью ИИ"
+        onConfirm={handleGenerateQuestions}
+        onCancel={() => setGenerateQuestionsModal(false)}
+        confirmText={isGenerating ? "Генерация..." : "Сгенерировать"}
+        cancelText="Отмена"
+        confirmDisabled={isGenerating}
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600">
+            ИИ создаст вопросы на основе темы и описания вашего опроса.
+          </p>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Количество вопросов
+            </label>
+            <Input
+              type="number"
+              value={questionCount}
+              onChange={(e) => {
+                const count = parseInt(e.target.value) || 1;
+                setQuestionCount(Math.max(1, Math.min(10, count)));
+              }}
+              min={1}
+              max={10}
+              className="w-full"
+            />
+          </div>
+          <Textarea
+            label="Дополнительные инструкции (необязательно)"
+            value={generatePrompt}
+            onChange={(e) => setGeneratePrompt(e.target.value)}
+            rows={4}
+            placeholder="Например: Добавь вопросы о работе в команде, сделай акцент на обратную связь..."
+          />
+          {isGenerating && (
+            <div className="flex items-center gap-3 text-primary-600">
+              <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              <span className="text-sm">ИИ генерирует вопросы...</span>
+            </div>
+          )}
+        </div>
       </Modal>
     </div>
   );

@@ -10,6 +10,7 @@ interface ModalProps {
   confirmText?: string;
   cancelText?: string;
   variant?: 'danger' | 'default';
+  confirmDisabled?: boolean;
 }
 
 export const Modal = ({
@@ -22,6 +23,7 @@ export const Modal = ({
   confirmText = 'Подтвердить',
   cancelText = 'Отмена',
   variant = 'default',
+  confirmDisabled = false,
 }: ModalProps) => {
   useEffect(() => {
     if (isOpen) {
@@ -117,8 +119,11 @@ export const Modal = ({
             {onConfirm && (
               <button
                 onClick={handleConfirm}
+                disabled={confirmDisabled}
                 className={`px-6 py-3 font-semibold rounded-xl transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 ${
-                  variant === 'danger'
+                  confirmDisabled
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : variant === 'danger'
                     ? 'bg-gradient-to-r from-red-500 to-red-600 text-white hover:from-red-600 hover:to-red-700 focus:ring-red-500 shadow-lg hover:shadow-xl shadow-red-500/25'
                     : 'bg-gradient-to-r from-primary-600 to-primary-700 text-white hover:from-primary-700 hover:to-primary-800 focus:ring-primary-500 shadow-lg hover:shadow-xl shadow-primary-500/25'
                 }`}
