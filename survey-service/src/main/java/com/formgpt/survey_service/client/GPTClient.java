@@ -141,4 +141,28 @@ public class GPTClient {
             throw new GPTServiceException("Unexpected error generating questions: " + e.getMessage(), e);
         }
     }
+
+    public String analyzeSurvey(SurveyAnalysisRequestSchema request) {
+        String url = gptServiceUrl + "/forms/analyze";
+        log.info("Calling GPT service for survey analysis");
+
+        try {
+            ResponseEntity<String> response = restTemplate.postForEntity(
+                    url,
+                    request,
+                    String.class
+            );
+
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                log.info("GPT analysis completed successfully");
+                return response.getBody();
+            } else {
+                log.error("Failed to get GPT analysis. Status: {}", response.getStatusCode());
+                throw new GPTServiceException("Failed to get GPT analysis");
+            }
+        } catch (Exception e) {
+            log.error("Error calling GPT analysis: {}", e.getMessage(), e);
+            throw new GPTServiceException("Failed to analyze survey with GPT: " + e.getMessage());
+        }
+    }
 }
