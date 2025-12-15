@@ -1,6 +1,8 @@
 package com.formgpt.survey_service.service;
 
+import com.formgpt.survey_service.client.GPTClient;
 import com.formgpt.survey_service.dto.*;
+import com.formgpt.survey_service.dto.schema.SurveyAnalysisRequestSchema;
 import com.formgpt.survey_service.entity.*;
 import com.formgpt.survey_service.exception.ValidationException;
 import com.formgpt.survey_service.repository.*;
@@ -21,6 +23,8 @@ public class SurveyService {
     private final ResponseRepository responseRepository;
     private final AnswerRepository answerRepository;
     private final UserRepository userRepository;
+    private final GPTClient gptClient;
+    private final GPTTypeConverter gptTypeConverter;
 
     public List<SurveyResponseDTO> getUserSurveys(User user) {
         return formRepository.findByCreatorOrderByCreatedAtDesc(user)
@@ -580,7 +584,7 @@ public class SurveyService {
         analytics.setQuestionsAnalytics(questionAnalytics);
 
         if (includeGPT) {
-            analytics.setGptAnalysis(generateGPTAnalysis(analytics));
+            analytics.setGptAnalysis(generateGPTAnalysis(analytics, form));
         }
 
         return analytics;
@@ -730,10 +734,88 @@ public class SurveyService {
         return analytics;
     }
 
-    private String generateGPTAnalysis(SurveyAnalyticsDTO analytics) {
-        // TODO: Здесь нужно интегрировать с GPT API для генерации анализа
-        return "GPT анализ будет реализован в следующей итерации.\n" +
-                "Всего респондентов: " + analytics.getTotalRespondents() + "\n" +
-                "Вопросов: " + analytics.getQuestionsAnalytics().size();
+    private String generateGPTAnalysis(SurveyAnalyticsDTO analytics, Form form) {
+        try {
+            SurveyAnalysisRequestSchema request = buildGPTAnalysisRequest(analytics, form);
+            return gptClient.analyzeSurvey(request);
+        } catch (Exception e) {
+            return buildFallbackAnalysis(analytics);
+        }
+    }
+
+    private SurveyAnalysisRequestSchema buildGPTAnalysisRequest(SurveyAnalyticsDTO analytics, Form form) {
+        SurveyAnalysisRequestSchema request = new SurveyAnalysisRequestSchema();
+
+        SurveyAnalysisRequestSchema.SurveyInfo surveyInfo = new SurveyAnalysisRequestSchema.SurveyInfo();
+        surveyInfo.setTitle(form.getTitle());
+        surveyInfo.setDescription(form.getDescription());
+        surveyInfo.setTotalRespondents(analytics.getTotalRespondents());
+        surveyInfo.setCompletedCount(analytics.getCompletedCount());
+        surveyInfo.setIncompletedCount(analytics.getIncompletedCount());
+        request.setSurvey(surveyInfo);
+
+        List<SurveyAnalysisRequestSchema.QuestionAnalysis> questionAnalyses = new ArrayList<>();
+
+        List<Question> questions = form.getQuestions();
+        List<QuestionAnalyticsDTO> analyticsList = analytics.getQuestionsAnalytics();
+
+        for (int i = 0; i < questions.size(); i++) {
+            Question question = questions.get(i);
+            QuestionAnalyticsDTO questionAnalytics = analyticsList.get(i);
+
+            SurveyAnalysisRequestSchema.QuestionAnalysis qa = new SurveyAnalysisRequestSchema.QuestionAnalysis();
+            qa.setQuestionText(question.getText());
+            qa.setQuestionType(gptTypeConverter.convertToGPTAnswerType(question.getType()));
+            qa.setTotalAnswers(questionAnalytics.getTotalAnswers());
+            qa.setStatistics(prepareStatisticsForGPT(questionAnalytics.getAnswerDistribution()));
+
+            if (question.getType() == QuestionType.SINGLE_CHOICE || question.getType() == QuestionType.MULTIPLE_CHOICE) {
+                List<String> options = question.getOptions().stream()
+                        .map(QuestionOption::getText)
+                        .collect(Collectors.toList());
+                qa.setOptions(options);
+            }
+
+            questionAnalyses.add(qa);
+        }
+
+        request.setQuestions(questionAnalyses);
+        return request;
+    }
+
+    private Object prepareStatisticsForGPT(Object distribution) {
+        if (distribution instanceof ChoiceDistributionDTO) {
+            ChoiceDistributionDTO dto = (ChoiceDistributionDTO) distribution;
+            Map<String, Object> stats = new HashMap<>();
+            stats.put("options", dto.getOptions());
+            stats.put("counts", dto.getCounts());
+            stats.put("percentages", dto.getPercentages());
+            return stats;
+        } else if (distribution instanceof ScaleDistributionDTO) {
+            ScaleDistributionDTO dto = (ScaleDistributionDTO) distribution;
+            Map<String, Object> stats = new HashMap<>();
+            stats.put("min", dto.getMin());
+            stats.put("max", dto.getMax());
+            stats.put("average", dto.getAverage());
+            stats.put("distribution", dto.getDistribution());
+            stats.put("median", dto.getMedian());
+            return stats;
+        } else if (distribution instanceof TextAnalyticsDTO) {
+            TextAnalyticsDTO dto = (TextAnalyticsDTO) distribution;
+            Map<String, Object> stats = new HashMap<>();
+            stats.put("totalAnswers", dto.getTotalAnswers());
+            stats.put("wordCloud", dto.getWordCloud());
+            stats.put("sampleAnswers", dto.getSampleAnswers());
+            return stats;
+        }
+        return distribution;
+    }
+
+    private String buildFallbackAnalysis(SurveyAnalyticsDTO analytics) {
+        return "Анализ от GPT временно недоступен.\n\n" +
+                "Основная статистика:\n" +
+                "- Всего респондентов: " + analytics.getTotalRespondents() + "\n" +
+                "- Завершивших опрос: " + analytics.getCompletedCount() + "\n" +
+                "- Вопросов в опросе: " + analytics.getQuestionsAnalytics().size();
     }
 }
