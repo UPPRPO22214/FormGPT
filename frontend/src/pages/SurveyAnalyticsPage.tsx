@@ -4,6 +4,8 @@ import { surveyApi } from '../services/api';
 import { SurveyAnalytics, QuestionAnalytics, ChoiceDistribution, ScaleDistribution, TextAnalytics } from '../types/survey';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 export const SurveyAnalyticsPage = () => {
   const { id } = useParams<{ id: string }>();
@@ -363,7 +365,9 @@ export const SurveyAnalyticsPage = () => {
               <div className="flex-1">
                 <h2 className="text-xl font-bold text-gray-900 mb-2">GPT Анализ</h2>
                 <div className="prose max-w-none">
-                  <p className="text-gray-700 whitespace-pre-wrap">{analytics.gptAnalysis}</p>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {analytics.gptAnalysis}
+                  </ReactMarkdown>
                 </div>
               </div>
             </div>
