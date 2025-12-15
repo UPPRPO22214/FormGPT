@@ -144,6 +144,35 @@ const normalizeSurveyId = (id: string | number | undefined): string => {
   return String(id);
 };
 
+/**
+ * Преобразует questionId в integer для запросов к API
+ * Проверяет, что ID не является временным (новым, не сохраненным)
+ */
+const normalizeQuestionId = (id: string | number | undefined): string => {
+  if (!id) throw new Error('Question ID is required');
+  
+  // Если это число, используем как есть
+  if (typeof id === 'number') {
+    if (id <= 0 || !Number.isInteger(id)) {
+      throw new Error('Invalid question ID: must be a positive integer');
+    }
+    return String(id);
+  }
+  
+  // Проверяем, является ли ID временным (содержит точку)
+  if (id.includes('.')) {
+    throw new Error('Cannot improve a new question. Please save the survey first.');
+  }
+  
+  // Пытаемся преобразовать в целое число
+  const numId = Number(id);
+  if (isNaN(numId) || numId <= 0 || !Number.isInteger(numId)) {
+    throw new Error(`Invalid question ID format: ${id}. Question must be saved first.`);
+  }
+  
+  return String(numId);
+};
+
 export const surveyApi = {
   getAll: async (): Promise<Survey[]> => {
     const response = await api.get<any[]>('/surveys');
@@ -217,12 +246,33 @@ export const surveyApi = {
   },
 
   improveQuestion: async (questionId: string, prompt?: string): Promise<Question> => {
-    const normalizedId = normalizeSurveyId(questionId);
-    // Согласно OpenAPI: requestBody необязательный, можно отправить пустой объект или объект с prompt
-    const requestBody = prompt ? { prompt } : {};
-    const response = await api.put<any>(`/gpt/questions/${normalizedId}/edit`, requestBody);
-    // Преобразуем ответ бэкенда в формат фронтенда
-    return transformQuestionFromBackend(response.data);
+    console.log('improveQuestion вызван:', { questionId, prompt });
+    
+    try {
+      const normalizedId = normalizeQuestionId(questionId);
+      console.log('Нормализованный ID вопроса:', normalizedId);
+      
+      // Согласно OpenAPI: requestBody необязательный, можно отправить пустой объект или объект с prompt
+      const requestBody = prompt ? { prompt } : {};
+      console.log('Отправка запроса:', {
+        url: `/gpt/questions/${normalizedId}/edit`,
+        method: 'PUT',
+        body: requestBody
+      });
+      
+      const response = await api.put<any>(`/gpt/questions/${normalizedId}/edit`, requestBody);
+      console.log('Ответ от сервера:', response.data);
+      
+      // Преобразуем ответ бэкенда в формат фронтенда
+      return transformQuestionFromBackend(response.data);
+    } catch (error: any) {
+      console.error('Ошибка в improveQuestion:', {
+        error,
+        message: error?.message,
+        questionId
+      });
+      throw error;
+    }
   },
 
   generateQuestions: async (surveyId: string, count: number, prompt?: string): Promise<Question[]> => {

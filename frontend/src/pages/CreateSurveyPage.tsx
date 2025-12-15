@@ -31,6 +31,21 @@ import { useNavigate } from 'react-router-dom';
 
 const generateId = () => String(Date.now() + Math.random());
 
+/**
+ * Проверяет, является ли ID вопроса временным (новым, не сохраненным на бэкенде)
+ * Временные ID имеют формат "число.число" (например, "1765775611959.404")
+ * Сохраненные ID - это целые числа (строки с целыми числами)
+ */
+const isTemporaryQuestionId = (id: string): boolean => {
+  // Если ID содержит точку, это временный ID
+  if (id.includes('.')) {
+    return true;
+  }
+  // Если это не число или отрицательное число, считаем временным
+  const numId = Number(id);
+  return isNaN(numId) || numId <= 0 || !Number.isInteger(numId);
+};
+
 const createDefaultQuestion = (order: number): Question => ({
   id: generateId(),
   type: 'text',
@@ -311,35 +326,88 @@ export const CreateSurveyPage = () => {
   );
 
   const handleImproveQuestion = (questionId: string) => {
+    console.log('handleImproveQuestion вызван:', { questionId, savedSurveyId });
+    
+    // Проверяем, является ли вопрос новым (временный ID)
+    if (isTemporaryQuestionId(questionId)) {
+      console.warn('Попытка улучшить новый вопрос с временным ID:', questionId);
+      alert('Сначала сохраните опрос, чтобы использовать функцию улучшения вопросов. Новые вопросы нужно сохранить перед улучшением.');
+      return;
+    }
+    
+    // Проверяем, сохранен ли опрос
+    if (!savedSurveyId) {
+      console.warn('Опрос не сохранен, нельзя улучшить вопрос');
+      alert('Сначала сохраните опрос, чтобы использовать функцию улучшения вопросов');
+      return;
+    }
+    
+    console.log('Открываем модальное окно улучшения вопроса');
     setImproveQuestionModal({ isOpen: true, questionId });
     setImprovePrompt('');
   };
 
   const handleConfirmImprove = async () => {
-    if (!improveQuestionModal.questionId || !savedSurveyId) {
+    const questionId = improveQuestionModal.questionId;
+    
+    console.log('handleConfirmImprove вызван:', { questionId, savedSurveyId, improvePrompt });
+    
+    if (!questionId || !savedSurveyId) {
+      console.warn('Недостаточно данных для улучшения вопроса:', { questionId, savedSurveyId });
       alert('Сначала сохраните опрос, чтобы использовать функцию улучшения вопросов');
+      setImproveQuestionModal({ isOpen: false, questionId: null });
+      return;
+    }
+
+    // Дополнительная проверка на временный ID
+    if (isTemporaryQuestionId(questionId)) {
+      console.error('Попытка улучшить вопрос с временным ID:', questionId);
+      alert('Нельзя улучшить новый вопрос. Сначала сохраните опрос, затем попробуйте снова.');
       setImproveQuestionModal({ isOpen: false, questionId: null });
       return;
     }
 
     setIsImproving(true);
     try {
+      console.log('Отправка запроса на улучшение вопроса:', {
+        questionId,
+        url: `/gpt/questions/${questionId}/edit`,
+        prompt: improvePrompt || undefined
+      });
+      
       const improvedQuestion = await surveyApi.improveQuestion(
-        improveQuestionModal.questionId,
+        questionId,
         improvePrompt || undefined
       );
       
+      console.log('Вопрос успешно улучшен:', improvedQuestion);
+      
       // Обновляем вопрос в списке
       setQuestions((prev) =>
-        prev.map((q) => (q.id === improveQuestionModal.questionId ? { ...improvedQuestion, order: q.order } : q))
+        prev.map((q) => (q.id === questionId ? { ...improvedQuestion, order: q.order } : q))
       );
       
       setIsSaved(false);
       setImproveQuestionModal({ isOpen: false, questionId: null });
       setImprovePrompt('');
     } catch (error: any) {
-      console.error('Ошибка улучшения вопроса:', error);
-      alert(error.response?.data?.message || 'Не удалось улучшить вопрос. Попробуйте еще раз.');
+      console.error('Ошибка улучшения вопроса:', {
+        error,
+        status: error?.response?.status,
+        data: error?.response?.data,
+        message: error?.message
+      });
+      
+      let errorMessage = 'Не удалось улучшить вопрос. Попробуйте еще раз.';
+      if (error.response?.status === 403) {
+        errorMessage = 'Доступ запрещен. Возможно, вопрос не существует или у вас нет прав на его редактирование.';
+      } else if (error.response?.status === 404) {
+        errorMessage = 'Вопрос не найден. Возможно, он был удален или еще не сохранен.';
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      }
+      
+      alert(errorMessage);
     } finally {
       setIsImproving(false);
     }
