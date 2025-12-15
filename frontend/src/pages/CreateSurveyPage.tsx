@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
-import { useParams } from 'react-router-dom';
+import { useParams, useLocation } from 'react-router-dom';
 import {
   DndContext,
   closestCenter,
@@ -31,6 +31,21 @@ import { useNavigate } from 'react-router-dom';
 
 const generateId = () => String(Date.now() + Math.random());
 
+/**
+ * Проверяет, является ли ID вопроса временным (новым, не сохраненным на бэкенде)
+ * Временные ID имеют формат "число.число" (например, "1765775611959.404")
+ * Сохраненные ID - это целые числа (строки с целыми числами)
+ */
+const isTemporaryQuestionId = (id: string): boolean => {
+  // Если ID содержит точку, это временный ID
+  if (id.includes('.')) {
+    return true;
+  }
+  // Если это не число или отрицательное число, считаем временным
+  const numId = Number(id);
+  return isNaN(numId) || numId <= 0 || !Number.isInteger(numId);
+};
+
 const createDefaultQuestion = (order: number): Question => ({
   id: generateId(),
   type: 'text',
@@ -41,8 +56,10 @@ const createDefaultQuestion = (order: number): Question => ({
 
 export const CreateSurveyPage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { id } = useParams<{ id: string }>();
   const isEditMode = !!id;
+  const isGPTMode = location.pathname.includes('/create/gpt');
   const [questions, setQuestions] = useState<Question[]>([
     createDefaultQuestion(0),
   ]);
@@ -61,6 +78,11 @@ export const CreateSurveyPage = () => {
   const [questionCount, setQuestionCount] = useState(3);
   const [isGenerating, setIsGenerating] = useState(false);
   const [savedSurveyId, setSavedSurveyId] = useState<string | null>(null);
+  const [createWithGPTModal, setCreateWithGPTModal] = useState(false);
+  const [gptDescription, setGptDescription] = useState('');
+  const [gptTargetAudience, setGptTargetAudience] = useState('');
+  const [gptQuestionCount, setGptQuestionCount] = useState(5);
+  const [isCreatingWithGPT, setIsCreatingWithGPT] = useState(false);
 
   const {
     register,
@@ -72,8 +94,11 @@ export const CreateSurveyPage = () => {
   useEffect(() => {
     if (isEditMode && id) {
       loadSurvey(id);
+    } else if (isGPTMode) {
+      // Если это режим создания с GPT, показываем модальное окно для ввода параметров
+      setCreateWithGPTModal(true);
     }
-  }, [id, isEditMode]);
+  }, [id, isEditMode, isGPTMode]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -270,10 +295,7 @@ export const CreateSurveyPage = () => {
         }
       }
       
-      // Через 2 секунды перенаправляем на главную страницу
-      setTimeout(() => {
-        navigate('/');
-      }, 2000);
+      // Не перенаправляем на главную страницу, пользователь остается на текущей
     } catch (error: any) {
       console.error('Ошибка сохранения опроса:', error);
       setSaveError(
@@ -304,37 +326,135 @@ export const CreateSurveyPage = () => {
   );
 
   const handleImproveQuestion = (questionId: string) => {
+    console.log('handleImproveQuestion вызван:', { questionId, savedSurveyId });
+    
+    // Проверяем, является ли вопрос новым (временный ID)
+    if (isTemporaryQuestionId(questionId)) {
+      console.warn('Попытка улучшить новый вопрос с временным ID:', questionId);
+      alert('Сначала сохраните опрос, чтобы использовать функцию улучшения вопросов. Новые вопросы нужно сохранить перед улучшением.');
+      return;
+    }
+    
+    // Проверяем, сохранен ли опрос
+    if (!savedSurveyId) {
+      console.warn('Опрос не сохранен, нельзя улучшить вопрос');
+      alert('Сначала сохраните опрос, чтобы использовать функцию улучшения вопросов');
+      return;
+    }
+    
+    console.log('Открываем модальное окно улучшения вопроса');
     setImproveQuestionModal({ isOpen: true, questionId });
     setImprovePrompt('');
   };
 
   const handleConfirmImprove = async () => {
-    if (!improveQuestionModal.questionId || !savedSurveyId) {
+    const questionId = improveQuestionModal.questionId;
+    
+    console.log('handleConfirmImprove вызван:', { questionId, savedSurveyId, improvePrompt });
+    
+    if (!questionId || !savedSurveyId) {
+      console.warn('Недостаточно данных для улучшения вопроса:', { questionId, savedSurveyId });
       alert('Сначала сохраните опрос, чтобы использовать функцию улучшения вопросов');
+      setImproveQuestionModal({ isOpen: false, questionId: null });
+      return;
+    }
+
+    // Дополнительная проверка на временный ID
+    if (isTemporaryQuestionId(questionId)) {
+      console.error('Попытка улучшить вопрос с временным ID:', questionId);
+      alert('Нельзя улучшить новый вопрос. Сначала сохраните опрос, затем попробуйте снова.');
       setImproveQuestionModal({ isOpen: false, questionId: null });
       return;
     }
 
     setIsImproving(true);
     try {
+      console.log('Отправка запроса на улучшение вопроса:', {
+        questionId,
+        url: `/gpt/questions/${questionId}/edit`,
+        prompt: improvePrompt || undefined
+      });
+      
       const improvedQuestion = await surveyApi.improveQuestion(
-        improveQuestionModal.questionId,
+        questionId,
         improvePrompt || undefined
       );
       
+      console.log('Вопрос успешно улучшен:', improvedQuestion);
+      
       // Обновляем вопрос в списке
       setQuestions((prev) =>
-        prev.map((q) => (q.id === improveQuestionModal.questionId ? { ...improvedQuestion, order: q.order } : q))
+        prev.map((q) => (q.id === questionId ? { ...improvedQuestion, order: q.order } : q))
       );
       
       setIsSaved(false);
       setImproveQuestionModal({ isOpen: false, questionId: null });
       setImprovePrompt('');
     } catch (error: any) {
-      console.error('Ошибка улучшения вопроса:', error);
-      alert(error.response?.data?.message || 'Не удалось улучшить вопрос. Попробуйте еще раз.');
+      console.error('Ошибка улучшения вопроса:', {
+        error,
+        status: error?.response?.status,
+        data: error?.response?.data,
+        message: error?.message
+      });
+      
+      let errorMessage = 'Не удалось улучшить вопрос. Попробуйте еще раз.';
+      if (error.response?.status === 403) {
+        errorMessage = 'Доступ запрещен. Возможно, вопрос не существует или у вас нет прав на его редактирование.';
+      } else if (error.response?.status === 404) {
+        errorMessage = 'Вопрос не найден. Возможно, он был удален или еще не сохранен.';
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      }
+      
+      alert(errorMessage);
     } finally {
       setIsImproving(false);
+    }
+  };
+
+  const handleCreateWithGPT = async () => {
+    if (!gptDescription.trim()) {
+      alert('Пожалуйста, введите описание опроса');
+      return;
+    }
+
+    setIsCreatingWithGPT(true);
+    try {
+      const createdSurvey = await surveyApi.createWithGPT(
+        gptDescription,
+        gptQuestionCount,
+        gptTargetAudience || undefined
+      );
+      
+      // Загружаем созданный опрос для редактирования
+      if (createdSurvey.id) {
+        await loadSurvey(createdSurvey.id);
+        setCreateWithGPTModal(false);
+        setGptDescription('');
+        setGptTargetAudience('');
+        setGptQuestionCount(5);
+        // Переходим в режим редактирования
+        navigate(`/surveys/${createdSurvey.id}/edit`, { replace: true });
+      }
+    } catch (error: any) {
+      console.error('Ошибка создания опроса с GPT:', error);
+      
+      let errorMessage = 'Не удалось создать опрос. Попробуйте еще раз.';
+      
+      if (error.response?.status === 403) {
+        errorMessage = 'Доступ запрещен. Возможно, токен истек или у вас нет прав доступа. Пожалуйста, войдите заново.';
+      } else if (error.response?.status === 401) {
+        errorMessage = 'Сессия истекла. Пожалуйста, войдите заново.';
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      alert(errorMessage);
+    } finally {
+      setIsCreatingWithGPT(false);
     }
   };
 
@@ -711,6 +831,73 @@ export const CreateSurveyPage = () => {
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
               </svg>
               <span className="text-sm">ИИ обрабатывает запрос...</span>
+            </div>
+          )}
+        </div>
+      </Modal>
+
+      {/* Модальное окно создания опроса с GPT */}
+      <Modal
+        isOpen={createWithGPTModal}
+        onClose={() => {
+          setCreateWithGPTModal(false);
+          if (isGPTMode) {
+            navigate('/surveys/create');
+          }
+        }}
+        title="Создать опрос с помощью ИИ"
+        onConfirm={handleCreateWithGPT}
+        onCancel={() => {
+          setCreateWithGPTModal(false);
+          if (isGPTMode) {
+            navigate('/surveys/create');
+          }
+        }}
+        confirmText={isCreatingWithGPT ? "Создание..." : "Создать"}
+        cancelText="Отмена"
+        confirmDisabled={isCreatingWithGPT || !gptDescription.trim()}
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600">
+            ИИ создаст полный опрос с указанным количеством вопросов на указанную тему.
+          </p>
+          <Textarea
+            label="Описание темы опроса *"
+            value={gptDescription}
+            onChange={(e) => setGptDescription(e.target.value)}
+            rows={4}
+            placeholder="Например: Опрос об удовлетворенности сотрудников условиями работы в офисе"
+            required
+          />
+          <Input
+            label="Целевая аудитория (необязательно)"
+            value={gptTargetAudience}
+            onChange={(e) => setGptTargetAudience(e.target.value)}
+            placeholder="Например: офисные сотрудники, студенты..."
+          />
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Количество вопросов
+            </label>
+            <Input
+              type="number"
+              value={gptQuestionCount}
+              onChange={(e) => {
+                const count = parseInt(e.target.value) || 1;
+                setGptQuestionCount(Math.max(1, Math.min(20, count)));
+              }}
+              min={1}
+              max={20}
+              className="w-full"
+            />
+          </div>
+          {isCreatingWithGPT && (
+            <div className="flex items-center gap-3 text-primary-600">
+              <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              <span className="text-sm">ИИ создает опрос...</span>
             </div>
           )}
         </div>

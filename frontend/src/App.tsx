@@ -52,6 +52,14 @@ function App() {
           }
         />
         <Route
+          path="/surveys/create/gpt"
+          element={
+            <ProtectedRoute>
+              <CreateSurveyPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/surveys/:id"
           element={
             <ProtectedRoute>
