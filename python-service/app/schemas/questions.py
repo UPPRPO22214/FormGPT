@@ -3,6 +3,8 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
+from schemas.stats import ChoiceStats, ScaleStats, TextStats
+
 
 class AnswerType(Enum):
     MULTIPLE_CHOICE = "multiple_choice"
@@ -47,3 +49,15 @@ class QuestionImprovementSchema(BaseModel):
                                               examples=[answer for answer in AnswerType])
     answer_options: Optional[list[str]] = Field(None, description="Answer options")
     prompt: Optional[str] = Field(None, description="Prompt for the question improvement")
+
+
+class QuestionAnalysis(BaseModel):
+    questionText: str = Field(..., description="Question text")
+    questionType: Optional[AnswerType] = Field(None, description="Type of the question",
+                                              examples=[answer for answer in AnswerType])
+    options: Optional[list[str]] = Field(None, description="Answer options")
+    totalAnswers: int = Field(..., description="Total responses")
+    statistics: Optional[ChoiceStats | ScaleStats | TextStats] = Field(None, description="Stats for the question")
+
+    class Config:
+        from_attributes = True

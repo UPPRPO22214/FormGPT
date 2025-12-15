@@ -2,7 +2,7 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
-from schemas.questions import QuestionSchema
+from schemas.questions import QuestionSchema, QuestionAnalysis
 
 
 # TODO: add examples and fields for swagger docs
@@ -27,6 +27,26 @@ class FormGenerationSchema(BaseModel):
 class FormImprovementSchema(BaseModel):
     prompt: Optional[str] = Field(None, description="Prompt for the form")
     form: FormSchema = Field(..., description="Form to improve")
+
+    class Config:
+        from_attributes = True
+
+
+class SurveyInfo(BaseModel):
+    title: str = Field(..., description="Survey title")
+    description: Optional[str] = Field(None, description="Survey description")
+    totalRespondents: int = Field(..., description="Total responses")
+    completedCount: int = Field(..., description="Completed responses")
+    incompletedCount: int = Field(..., description="Incomplete responses")
+
+    class Config:
+        from_attributes = True
+
+
+
+class SurveyAnalysisRequestSchema(BaseModel):
+    survey: SurveyInfo = Field(..., description="Survey to analyze")
+    questions: list[QuestionAnalysis] = Field(..., description="List of questions")
 
     class Config:
         from_attributes = True

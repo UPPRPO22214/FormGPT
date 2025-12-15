@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from schemas.forms import FormGenerationSchema, FormSchema, FormImprovementSchema
+from schemas.forms import FormGenerationSchema, FormSchema, FormImprovementSchema, SurveyAnalysisRequestSchema
 from schemas.questions import QuestionSchema, QuestionGenerationSchema, QuestionImprovementSchema, \
     MultipleQuestionGenerationSchema
 
@@ -24,4 +24,8 @@ class LLMServiceInterface(ABC):
 
     @abstractmethod
     def generate_multiple_questions(self, topic: MultipleQuestionGenerationSchema) -> list[QuestionSchema]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def analyze_results(self, topic: SurveyAnalysisRequestSchema) -> str:
         raise NotImplementedError
