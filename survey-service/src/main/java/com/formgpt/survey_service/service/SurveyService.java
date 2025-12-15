@@ -24,6 +24,7 @@ public class SurveyService {
     private final AnswerRepository answerRepository;
     private final UserRepository userRepository;
     private final GPTClient gptClient;
+    private final GPTTypeConverter gptTypeConverter;
 
     public List<SurveyResponseDTO> getUserSurveys(User user) {
         return formRepository.findByCreatorOrderByCreatedAtDesc(user)
@@ -764,7 +765,7 @@ public class SurveyService {
 
             SurveyAnalysisRequestSchema.QuestionAnalysis qa = new SurveyAnalysisRequestSchema.QuestionAnalysis();
             qa.setQuestionText(question.getText());
-            qa.setQuestionType(question.getType().getApiValue());
+            qa.setQuestionType(gptTypeConverter.convertToGPTAnswerType(question.getType()));
             qa.setTotalAnswers(questionAnalytics.getTotalAnswers());
             qa.setStatistics(prepareStatisticsForGPT(questionAnalytics.getAnswerDistribution()));
 

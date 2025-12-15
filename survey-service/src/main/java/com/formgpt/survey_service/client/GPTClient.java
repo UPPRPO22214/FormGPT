@@ -143,7 +143,7 @@ public class GPTClient {
     }
 
     public String analyzeSurvey(SurveyAnalysisRequestSchema request) {
-        String url = gptServiceUrl + "/forms/analyze";
+        String url = gptServiceUrl + "/forms/analyize_results";
         log.info("Calling GPT service for survey analysis");
 
         try {
